@@ -1,2 +1,0 @@
-// Exportar pantallas aquí
-export {}; 
