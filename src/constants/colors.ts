@@ -2,7 +2,10 @@
 export const COLORS = {
   // Color principal
   primary: '#7300BF',
-  
+  background: '#fff',
+  text: '#1e293b',
+  border: '#e0e0e0',
+
   // Colores de tema
   light: {
     background: '#FFFFFF',
@@ -34,4 +37,4 @@ export const COLORS = {
 // Función para obtener colores según el tema
 export const getThemeColors = (isDark: boolean) => {
   return isDark ? COLORS.dark : COLORS.light;
-}; 
+};
