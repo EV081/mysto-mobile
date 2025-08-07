@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigation } from '@react-navigation/native';
 import { useAuthContext } from '@contexts/AuthContext';
 import { LoginRequest } from '@interfaces/auth/LoginRequest';
+import { getRoleBasedOnToken } from '@utils/getRoleBasedOnToken';
 
 interface UseAuthOptions {
   onSuccess?: () => void;
@@ -11,17 +12,17 @@ interface UseAuthOptions {
 
 export function useAuthState() {
   const context = useAuthContext();
-  
-  // Verificar si el usuario está autenticado
   const isAuthenticated = !!context.session;
-  
-  // Verificar si está cargando
   const isLoading = context.isLoading;
-  
+
+  // Si session es un token JWT
+  const role = context.session ? getRoleBasedOnToken(context.session) : undefined;
+
   return {
     ...context,
     isAuthenticated,
     isLoading,
+    role, 
   };
 }
 

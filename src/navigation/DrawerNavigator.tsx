@@ -4,6 +4,8 @@ import { View, Text, StyleSheet, TouchableOpacity, useColorScheme } from 'react-
 import { useAuthContext } from '@contexts/AuthContext';
 import { getThemeColors, COLORS } from '@constants/colors';
 import HomeScreen from '@screens/HomeScreen';
+import MuseumScreen from '@screens/MuseumScreen';
+import MuseumForOneScreen from '@screens/MuseumforOneScreen';
 
 const Drawer = createDrawerNavigator();
 
@@ -80,6 +82,7 @@ export default function DrawerNavigator() {
       }}
     >
       <Drawer.Screen name="Home" component={HomeScreen} options={{ title: 'Inicio' }} />
+      <Drawer.Screen name="Museum" component={MuseumScreen} options={{ title: 'Museos' }} />
     </Drawer.Navigator>
   );
 }
