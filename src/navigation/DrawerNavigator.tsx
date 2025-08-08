@@ -6,7 +6,7 @@ import { getThemeColors, COLORS } from '@constants/colors';
 import HomeScreen from '@screens/HomeScreen';
 import MuseumScreen from '@screens/MuseumScreen';
 import MuseumForOneScreen from '@screens/MuseumforOneScreen';
-
+import RedSocialScreen from '@screens/RedSocialScreen';
 const Drawer = createDrawerNavigator();
 
 function CustomDrawerContent(props: any) {
@@ -83,6 +83,7 @@ export default function DrawerNavigator() {
     >
       <Drawer.Screen name="Home" component={HomeScreen} options={{ title: 'Inicio' }} />
       <Drawer.Screen name="Museum" component={MuseumScreen} options={{ title: 'Museos' }} />
+      <Drawer.Screen name= "RedSocial" component={RedSocialScreen} options= {{title: 'Red Social'}} />
     </Drawer.Navigator>
   );
 }
