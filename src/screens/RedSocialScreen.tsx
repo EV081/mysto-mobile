@@ -1,10 +1,10 @@
 import { View, Text, StyleSheet } from 'react-native';
-
-
+import { Button } from 'react-native-paper';
+import ObjetosListados from '@components/ObjetosListados';
 export default function RedSocialScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Red Social</Text>
+      <ObjetosListados />
     </View>
   );
 }
