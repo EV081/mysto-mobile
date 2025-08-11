@@ -9,12 +9,12 @@ import { COLORS } from '@constants/colors';
 
 interface BasicInfoFormProps {
   name: string;
-  points: string;
-  coins: string;
+  points: number;
+  coins: number;
   description: string;
   onNameChange: (name: string) => void;
-  onPointsChange: (points: string) => void;
-  onCoinsChange: (coins: string) => void;
+  onPointsChange: (points: number) => void;
+  onCoinsChange: (coins: number) => void;
   onDescriptionChange: (description: string) => void;
 }
 
@@ -46,8 +46,8 @@ export default function BasicInfoForm({
         <TextInput
           style={styles.input}
           placeholder="Ej: 100 puntos"
-          value={points}
-          onChangeText={onPointsChange}
+          value={points.toString()}
+          onChangeText={(val) => onPointsChange(Number(val))}
           keyboardType="numeric"
           maxLength={10}
         />
@@ -58,8 +58,8 @@ export default function BasicInfoForm({
         <TextInput
           style={styles.input}
           placeholder="Ej: 50 monedas"
-          value={coins}
-          onChangeText={onCoinsChange}
+          value={coins.toString()}
+          onChangeText={(val) => onCoinsChange(Number(val))}
           keyboardType="numeric"
           maxLength={10}
         />
@@ -106,4 +106,4 @@ const styles = StyleSheet.create({
     height: 100,
     textAlignVertical: 'top',
   },
-}); 
+});

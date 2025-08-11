@@ -1,111 +1,162 @@
-import React, { useEffect, useState } from 'react';
-import { View, FlatList, StyleSheet, ActivityIndicator, ScrollView, Alert, Modal, Text } from 'react-native';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { View, FlatList, StyleSheet, ActivityIndicator, Modal } from 'react-native';
 import { useAuthState } from '../hooks/useAuth';
 import { getPagedMuseums } from '@services/museum/getListarMuseums';
 import { createMuseum } from '@services/museum/createMuseum';
 import { putUpdateMuseum } from '@services/museum/putupdateMuseum';
 import { uploadMuseumPictures } from '@services/pictures/uploadMuseumPictures';
 import { useNavigation } from '@react-navigation/native';
-import { Button, IconButton } from 'react-native-paper';
+import { Button } from 'react-native-paper';
 import { COLORS } from '@constants/colors';
 import MuseumForm from '@components/MuseumForm';
 import MuseumCard from '@components/MuseumCard';
+import SearchBar from '@components/common/SearchBar';
+import Pagination from '@components/common/Pagination';
+import Toast from '@components/common/Toast';
+import { useToast } from '@hooks/useToast';
+import { useSearch } from '@hooks/useSearch';
 import { MuseumResponse } from '@interfaces/museum/MuseumResponse';
+import { PagedResponse } from '@interfaces/common/PagedResponse';
 
 export default function MuseumScreen() {
-  const { session } = useAuthState();
   const { role } = useAuthState();
   const navigation = useNavigation();
+  
+  // Estados principales
   const [museums, setMuseums] = useState<MuseumResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editingMuseum, setEditingMuseum] = useState<MuseumResponse | null>(null);
+  
+  // Estados de paginación simplificados
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
+  const pageSize = 6;
 
-  useEffect(() => {
-    fetchMuseums();
-  }, []);
+  // Refs para evitar dependencias circulares
+  const isInitialLoad = useRef(true);
+  
+  // Hooks personalizados
+  const { toast, showSuccess, showError, hideToast } = useToast();
+  const { filteredData: filteredMuseums, handleSearch, clearSearch, searchQuery } = useSearch(
+    museums,
+    ['name', 'description']
+  );
 
-  const fetchMuseums = async () => {
+  // Función para cargar museos
+  const loadMuseums = useCallback(async (page: number = 0) => {
     setLoading(true);
     try {
-      const data = await getPagedMuseums();
-      setMuseums(data.contents); // Usa el array correcto según tu backend
+      const data: PagedResponse<MuseumResponse> = await getPagedMuseums(page, pageSize);
+      setMuseums(data.contents);
+      setCurrentPage(data.paginaActual);
+      setTotalPages(data.totalPaginas);
+      setTotalElements(data.totalElementos);
     } catch (e) {
-      Alert.alert('Error', 'No se pudieron cargar los museos');
+      showError('No se pudieron cargar los museos');
     }
     setLoading(false);
-  };
+  }, [showError]);
 
+  // Efecto inicial
+  useEffect(() => {
+    if (isInitialLoad.current) {
+      isInitialLoad.current = false;
+      loadMuseums(0);
+    }
+  }, [loadMuseums]);
+
+  // Función para manejar envío del formulario
   const handleSubmitMuseum = async (data: any) => {
     setFormLoading(true);
     try {
       const { images, ...museumData } = data;
       
       if (editMode && editingMuseum) {
-        // Modo edición
         await putUpdateMuseum(editingMuseum.id, museumData);
-        if (images && images.length > 0) {
+        if (images?.length > 0) {
           for (const img of images) {
-            if (!img.id) { // Solo subir imágenes nuevas
+            if (!img.id) {
               await uploadMuseumPictures(editingMuseum.id, img.uri);
             }
           }
         }
-        Alert.alert('Éxito', 'Museo actualizado correctamente');
+        showSuccess('Museo actualizado correctamente');
       } else {
-        // Modo creación
         const museum = await createMuseum(museumData);
-        if (images && images.length > 0) {
+        if (images?.length > 0) {
           for (const img of images) {
             await uploadMuseumPictures(museum.id, img.uri);
           }
         }
-        Alert.alert('Éxito', 'Museo creado correctamente');
+        showSuccess('Museo creado correctamente');
       }
       
       setShowForm(false);
       setEditMode(false);
       setEditingMuseum(null);
-      fetchMuseums();
+      // Recargar datos después de crear/actualizar
+      await loadMuseums(currentPage);
     } catch (e) {
-      console.error('Error en operación de museo:', e);
-      Alert.alert(
-        'Error', 
-        editMode ? 'No se pudo actualizar el museo. Verifica tu conexión e intenta de nuevo.' : 'No se pudo crear el museo. Verifica tu conexión e intenta de nuevo.'
-      );
+      const message = editMode ? 'No se pudo actualizar el museo' : 'No se pudo crear el museo';
+      showError(message);
     } finally {
       setFormLoading(false);
     }
   };
 
-  const handleEditMuseum = (museum: MuseumResponse) => {
+  // Función para editar museo
+  const handleEditMuseum = useCallback((museum: MuseumResponse) => {
     setEditingMuseum(museum);
     setEditMode(true);
     setShowForm(true);
-  };
+  }, []);
 
-  const handleCancelForm = () => {
+  // Función para cancelar formulario
+  const handleCancelForm = useCallback(() => {
     setShowForm(false);
     setEditMode(false);
     setEditingMuseum(null);
-  };
+  }, []);
 
-  const handleMuseumPress = (museum: MuseumResponse) => {
+  // Función para navegar al museo
+  const handleMuseumPress = useCallback((museum: MuseumResponse) => {
     (navigation as any).navigate('MuseumforOneScreen', { 
       museumId: museum.id,
-      onMuseumDeleted: fetchMuseums
+      onMuseumDeleted: () => loadMuseums(currentPage)
     });
-  };
+  }, [navigation, loadMuseums, currentPage]);
+
+  // Función para mostrar formulario de creación
+  const handleShowCreateForm = useCallback(() => {
+    setShowForm(true);
+  }, []);
+
+  // Función para cambiar de página
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page);
+    loadMuseums(page);
+  }, [loadMuseums]);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator color={COLORS.primary} size="large" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
+      {/* Botón de creación */}
       {role === 'COLLAB' && (
         <Button
           mode="contained"
           style={styles.createButton}
-          onPress={() => setShowForm(true)}
+          onPress={handleShowCreateForm}
           icon="plus"
           buttonColor={COLORS.primary}
         >
@@ -113,23 +164,42 @@ export default function MuseumScreen() {
         </Button>
       )}
 
-      {loading ? (
-        <ActivityIndicator color={COLORS.primary} size="large" />
-      ) : (
-        <FlatList
-          data={museums}
-          keyExtractor={item => item.id.toString()}
-          renderItem={({ item }) => (
-            <MuseumCard
-              museum={item}
-              onPress={() => handleMuseumPress(item)}
-              onEdit={role === 'COLLAB' ? () => handleEditMuseum(item) : undefined}
-              disabled={false}
-            />
-          )}
-          contentContainerStyle={{ paddingBottom: 24 }}
+      {/* Barra de búsqueda */}
+      <SearchBar
+        placeholder="Buscar museos por nombre..."
+        onSearch={handleSearch}
+        onClear={clearSearch}
+        initialValue={searchQuery}
+      />
+
+      {/* Lista de museos */}
+      <FlatList
+        data={filteredMuseums}
+        keyExtractor={item => item.id.toString()}
+        renderItem={({ item }) => (
+          <MuseumCard
+            museum={item}
+            onPress={() => handleMuseumPress(item)}
+            onEdit={role === 'COLLAB' ? () => handleEditMuseum(item) : undefined}
+            disabled={false}
+          />
+        )}
+        contentContainerStyle={styles.listContainer}
+        showsVerticalScrollIndicator={false}
+      />
+
+      {/* Paginación */}
+      {!searchQuery && (
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={handlePageChange}
+          totalElements={totalElements}
+          pageSize={pageSize}
         />
       )}
+
+      {/* Modal del formulario */}
       <Modal visible={showForm} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -141,8 +211,8 @@ export default function MuseumScreen() {
               initialData={editingMuseum ? {
                 name: editingMuseum.name,
                 description: editingMuseum.description,
-                latitud: editingMuseum.latitud,
-                longitud: editingMuseum.longitud,
+                latitud: editingMuseum.latitude,
+                longitud: editingMuseum.longitude,
                 openTime: editingMuseum.openTime,
                 closeTime: editingMuseum.closeTime,
                 images: []
@@ -152,6 +222,14 @@ export default function MuseumScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Toast */}
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onHide={hideToast}
+      />
     </View>
   );
 }
@@ -162,24 +240,33 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
     padding: 16,
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+  },
   createButton: {
     marginBottom: 16,
     borderRadius: 8,
   },
+  listContainer: {
+    paddingBottom: 24,
+  },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: COLORS.modal.overlay,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   modalContent: {
-    backgroundColor: '#ffffff',
+    backgroundColor: COLORS.modal.background,
     borderRadius: 16,
     width: '100%',
     maxWidth: 600,
     height: '80%',
-    shadowColor: '#000',
+    shadowColor: COLORS.card.shadow,
     shadowOffset: {
       width: 0,
       height: 2,

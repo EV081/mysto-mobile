@@ -65,7 +65,7 @@ const loadExistingImages = async () => {
   
   setLoadingImages(true);
   try {
-    const imageUrls = await getMuseumPictures(museumId.toString());
+    const imageUrls = await getMuseumPictures(museumId);
     // Aquí asumimos que getMuseumPictures devuelve array de objetos {id: number, url: string}
     const imagesWithIds = imageUrls.map((img: { id: number; url: string }) => ({
       id: img.id,
