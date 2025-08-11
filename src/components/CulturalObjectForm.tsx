@@ -11,8 +11,9 @@ import { COLORS } from '@constants/colors';
 import { CulturalObjectType } from '@interfaces/cuturalObject/CulturalObjectType';
 import { createCulturalObject } from '@services/culturalObject/createCulturalObject';
 import { updateCulturalObject } from '@services/culturalObject/updateCulturalObject';
-import { getReviewPictures as getCulturalObjectPictures } from '@services/pictures/getCulturalObjectPictures';
+import { getCulturalObjectPictures } from '@services/pictures/getCulturalObjectPictures';
 import { uploadCulturalObjectPictures } from '@services/pictures/uploadCulturalObjectPictures';
+import { deletePicture } from '@services/pictures/deletePictures';
 
 // Componentes modulares
 import TypeSelector from '@components/CulturalObjectForm/TypeSelector';
@@ -22,26 +23,35 @@ import ImageGallery from '@components/common/ImageGallery';
 
 interface CulturalObjectFormProps {
   museumId: number;
+  culturalObjectId?: number; 
   onSuccess?: () => void;
   onCancel: () => void;
   loading?: boolean;
   editMode?: boolean;
-  culturalObject?: any; // Para edición
+  initialData?: {
+    id: number;
+    name: string;
+    points: number;
+    coins: number;
+    description: string;
+    type: CulturalObjectType;
+  };
 }
 
 export default function CulturalObjectForm({
+  culturalObjectId,
   museumId,
   onSuccess,
   onCancel,
   loading = false,
   editMode = false,
-  culturalObject,
+  initialData,
 }: CulturalObjectFormProps) {
-  const [name, setName] = useState(editMode && culturalObject ? culturalObject.name : '');
-  const [points, setPoints] = useState(editMode && culturalObject ? culturalObject.points?.toString() || '' : '');
-  const [coins, setCoins] = useState(editMode && culturalObject ? culturalObject.coins?.toString() || '' : '');
-  const [description, setDescription] = useState(editMode && culturalObject ? culturalObject.description : '');
-  const [type, setType] = useState<CulturalObjectType | null>(editMode && culturalObject ? culturalObject.type : null);
+  const [name, setName] = useState(initialData?.name || '');
+  const [points, setPoints] = useState<number>(initialData?.points ?? 0);
+  const [coins, setCoins] = useState<number>(initialData?.coins ?? 0);
+  const [description, setDescription] = useState(initialData?.description || '');
+  const [type, setType] = useState<CulturalObjectType | null>(initialData?.type || null);
   const [newImages, setNewImages] = useState<any[]>([]);
   const [existingImages, setExistingImages] = useState<any[]>([]);
   const [loadingImages, setLoadingImages] = useState(false);
@@ -49,20 +59,19 @@ export default function CulturalObjectForm({
 
   // Cargar imágenes existentes en modo edición
   useEffect(() => {
-    if (editMode && culturalObject?.id) {
+    if (editMode && culturalObjectId) {
       loadExistingImages();
     }
-  }, [editMode, culturalObject?.id]);
+  }, [editMode, culturalObjectId]);
 
   const loadExistingImages = async () => {
-    if (!culturalObject?.id) return;
-    
+    if (!culturalObjectId) return;
     setLoadingImages(true);
     try {
-      const imageUrls = await getCulturalObjectPictures(culturalObject.id.toString());
-      const imagesWithIds = imageUrls.map((url, index) => ({
-        id: `existing-${index}`,
-        url: url
+      const imageUrls = await getCulturalObjectPictures(culturalObjectId);
+      const imagesWithIds = imageUrls.map((img: { id: number; url: string }) => ({
+        id: img.id,
+        url: img.url,
       }));
       setExistingImages(imagesWithIds);
     } catch (error) {
@@ -72,16 +81,23 @@ export default function CulturalObjectForm({
     }
   };
 
+  const handleDeleteExistingImage = async (id: number) => {
+    try {
+      await deletePicture(id);
+      setExistingImages(prev => prev.filter(img => img.id !== id));
+    } catch (error) {
+      Alert.alert('Error', 'No se pudo eliminar la imagen. Intenta de nuevo.');
+      console.error('Error eliminando imagen:', error);
+    }
+  };
+
   const handleSubmit = async () => {
-    if (!name.trim() || !points.trim() || !coins.trim() || !description.trim() || !type) {
+    if (!name.trim() || !description.trim() || !type) {
       Alert.alert('Campos incompletos', 'Por favor completa todos los campos obligatorios.');
       return;
     }
 
-    const pointsNum = parseInt(points.trim());
-    const coinsNum = parseInt(coins.trim());
-
-    if (isNaN(pointsNum) || isNaN(coinsNum)) {
+    if (isNaN(points) || isNaN(coins)) {
       Alert.alert('Error', 'Los puntos y monedas deben ser números válidos.');
       return;
     }
@@ -91,58 +107,62 @@ export default function CulturalObjectForm({
     try {
       const culturalObjectData = {
         name: name.trim(),
-        points: pointsNum,
-        coins: coinsNum,
+        points,
+        coins,
         description: description.trim(),
-        type: type,
+        type,
         pictures: [],
+        images: newImages,
       };
 
-      if (editMode && culturalObject) {
-        await updateCulturalObject(culturalObject.id, culturalObjectData);
-        
-        // Subir nuevas imágenes si las hay
+      if (editMode && culturalObjectId) {
+        await updateCulturalObject(culturalObjectId, culturalObjectData);
+
+        // Subir nuevas imágenes
         if (newImages.length > 0) {
           for (const img of newImages) {
-            await uploadCulturalObjectPictures(culturalObject.id, img.uri);
+            await uploadCulturalObjectPictures(culturalObjectId, img.uri);
           }
         }
-        
-        Alert.alert(
-          '¡Éxito!', 
-          'Objeto cultural actualizado correctamente.',
-          [{ text: 'OK', onPress: () => {
-            onSuccess?.();
-          }}]
-        );
+
+        Alert.alert('¡Éxito!', 'Objeto cultural actualizado correctamente.', [
+          { text: 'OK', onPress: () => onSuccess?.() },
+        ]);
       } else {
         const newObject = await createCulturalObject(culturalObjectData, museumId);
-        
-        // Subir imágenes si las hay
-        if (newImages.length > 0) {
-          for (const img of newImages) {
-            await uploadCulturalObjectPictures(newObject.id, img.uri);
+
+      // Subir imágenes
+      if (newImages.length > 0) {
+        for (const img of newImages) {
+          if (img.uri) { // aseguramos que tenga uri
+            await uploadCulturalObjectPictures(Number(newObject.id), img.uri);
+          } else {
+            console.warn('Imagen sin uri detectada:', img);
           }
         }
-        
-        Alert.alert(
-          '¡Éxito!', 
-          'Objeto cultural creado correctamente.',
-          [{ text: 'OK', onPress: () => {
-            setName('');
-            setPoints('');
-            setCoins('');
-            setDescription('');
-            setType(null);
-            setNewImages([]);
-            onSuccess?.();
-          }}]
-        );
       }
 
+        Alert.alert('¡Éxito!', 'Objeto cultural creado correctamente.', [
+          {
+            text: 'OK',
+            onPress: () => {
+              setName('');
+              setPoints(0);
+              setCoins(0);
+              setDescription('');
+              setType(null);
+              setNewImages([]);
+              onSuccess?.();
+            },
+          },
+        ]);
+      }
     } catch (error) {
       console.error('Error saving cultural object:', error);
-      Alert.alert('Error', `No se pudo ${editMode ? 'actualizar' : 'crear'} el objeto cultural. Verifica tu conexión e intenta de nuevo.`);
+      Alert.alert(
+        'Error',
+        `No se pudo ${editMode ? 'actualizar' : 'crear'} el objeto cultural. Verifica tu conexión e intenta de nuevo.`
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -150,53 +170,46 @@ export default function CulturalObjectForm({
 
   return (
     <View style={styles.container}>
-      <ScrollView 
+      <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.title}>🎨 {editMode ? 'Editar' : 'Nuevo'} Objeto Cultural</Text>
 
-        {/* Selector de tipo */}
-        <TypeSelector
-          selectedType={type}
-          onTypeChange={setType}
-        />
+        <TypeSelector selectedType={type} onTypeChange={setType} />
 
-        {/* Información básica */}
         <BasicInfoForm
           name={name}
           points={points}
           coins={coins}
           description={description}
           onNameChange={setName}
-          onPointsChange={setPoints}
-          onCoinsChange={setCoins}
+          onPointsChange={(val) => setPoints(Number(val))}
+          onCoinsChange={(val) => setCoins(Number(val))}
           onDescriptionChange={setDescription}
         />
 
-        {/* Imágenes existentes (solo en modo edición) */}
         {editMode && (
           <ImageGallery
             images={existingImages}
             onImagesChange={setExistingImages}
+            onDeleteImage={handleDeleteExistingImage}
             title="Imágenes actuales"
             loading={loadingImages}
           />
         )}
 
-        {/* Subida de nuevas imágenes */}
         <ImageUploader
           images={newImages}
           onImagesChange={setNewImages}
-          title={editMode ? "Agregar nuevas imágenes" : "Imágenes"}
-          buttonText={editMode ? "Agregar más imágenes" : "Agregar imágenes"}
+          title={editMode ? 'Agregar nuevas imágenes' : 'Imágenes'}
+          buttonText={editMode ? 'Agregar más imágenes' : 'Agregar imágenes'}
         />
 
-        {/* Botones de acción */}
         <View style={styles.actions}>
-          <Button 
-            onPress={onCancel} 
+          <Button
+            onPress={onCancel}
             style={styles.cancelButton}
             mode="outlined"
             disabled={isSubmitting}
@@ -207,7 +220,9 @@ export default function CulturalObjectForm({
             mode="contained"
             onPress={handleSubmit}
             loading={isSubmitting}
-            disabled={isSubmitting || !name.trim() || !points.trim() || !coins.trim() || !description.trim() || !type}
+            disabled={
+              isSubmitting || !name.trim() || !description.trim() || !type
+            }
             buttonColor={COLORS.primary}
             style={styles.submitButton}
           >

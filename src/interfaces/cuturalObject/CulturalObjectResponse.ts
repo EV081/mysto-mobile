@@ -1,7 +1,7 @@
 import { CulturalObjectType } from "@interfaces/cuturalObject/CulturalObjectType";
 
 export interface CulturalObjectResponse {
-    id: string;
+    id: number;
     name: string;
     points: number;
     coins: number;
@@ -10,6 +10,6 @@ export interface CulturalObjectResponse {
     type: CulturalObjectType;
     pictureUrls: string[];
     reviews: string[];
-    museumId: string;
+    museumId: number;
     museumName: string;
 }
