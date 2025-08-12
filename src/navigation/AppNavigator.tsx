@@ -30,7 +30,6 @@ export default function AppNavigator() {
     attemptAutoLogin();
   }, [isLoading, isAuthenticated, isAutoLoginAttempted, autoLogin]);
 
-  // Mostrar pantalla de carga mientras se valida la autenticación
   if (isLoading || (!isAuthenticated && !isAutoLoginAttempted)) {
     return (
       <View style={styles.container}>
