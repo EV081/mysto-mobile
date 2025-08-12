@@ -3,9 +3,9 @@ import { PaginatedResponse } from "@interfaces/globals/PaginatedResponse";
 import Api from "@services/api"
 
 export const getAllArticles = async (page:number, size: number) => {
-    const api = Api.getInstance();
+    const api = await Api.getInstance();
     try {
-        const response = await (await api).get<undefined, PaginatedResponse<ArticleResponse>>({ url: "/articles", params: { page, size } });
+        const response = await api.get<undefined, PaginatedResponse<ArticleResponse>>({ url: "/article", params: { page, size } });
         return response.data;
     } catch (error) {
         console.error("Fetching articles failed:", error);

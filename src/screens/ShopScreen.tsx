@@ -1,43 +1,59 @@
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useState } from "react";
-import { Button, Text } from "react-native";
-import {
-    initPaymentSheet,
-    presentPaymentSheet
-} from "@stripe/stripe-react-native";
-import { paymentTest } from "@services/shop/paymentTest";
+import { Button, Text, View } from "react-native";
+import { ArticleResponse } from "@interfaces/article/ArticleResponse";
+import { getAllArticles } from "@services/articles/articles";
+import { ArticleItem } from "@components/Cards";
+
 export default function ShopScreen() {
+    const [articleItems, setArticleItems] = useState<ArticleResponse[]>([]);
+    const [page, setPage] = useState(0);
+    const [isLoading, setIsLoading] = useState(false);
+    const [totalPages, setTotalPages] = useState(1);
+    const pageSize = 10;
 
-    const [clientSecret, setClientSecret] = useState("");
 
+    const fetchArticles = async () => {
+        setIsLoading(true);
+        const articles = await getAllArticles(page, pageSize);
+        setArticleItems(articles.contents);
+        setTotalPages(articles.totalPages);
+        setIsLoading(false);
+    }
 
-    const fetchPaymentIntent = async () => {
+    const nextPage = () => {
+        if (page + 1 >= totalPages) return;
+        setPage(page + 1);
+        fetchArticles();
+    }
 
-        const { clientSecret } = await paymentTest();
-        setClientSecret(clientSecret);
+    const prevPage = () => {
+        if (page <= 0) return;
+        setPage(page - 1);
+        fetchArticles();
+    }
 
-        await initPaymentSheet({
-            paymentIntentClientSecret: clientSecret,
-            merchantDisplayName: "Mi Tienda",
-        });  
-    };
+    useEffect(() => {
+        fetchArticles();
+    }, []);
 
-    const openPaymentSheet = async () => {
-        const { error } = await presentPaymentSheet();
-
-        if (error) {
-            alert(`Error: ${error.message}`);
-        } else {
-            alert("✅ ¡Pago exitoso!");
-            // OPCIONAL: notificar al backend o navegar
-        }
-    };
     return (
         <SafeAreaView>
 
-            <Button title="Cargar método de pago" onPress={fetchPaymentIntent} />
-            <Text>Cliente secreto: {clientSecret}</Text>
-            <Button title="Pagar" onPress={openPaymentSheet} />
+            <Text> Bienvenido a la tienda de articulos </Text>
+            <Text>Adquire monedas al precio que gustes</Text>
+            <View>
+                <Button title="Anterior" onPress={prevPage} disabled={page <= 0 || isLoading} />
+                <Text>{page + 1}</Text>
+                <Button title="Siguiente" onPress={nextPage} disabled={page + 1 >= totalPages || isLoading} />
+            </View>
+
+
+            {articleItems.map((item) => (
+                <ArticleItem key={item.id} data={item} />
+            ))}
+
+            <Button title="Cargar método de pago" />
         </SafeAreaView>
     )
 }
