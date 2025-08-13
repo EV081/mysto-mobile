@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, useColorScheme } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { COLORS, getThemeColors } from '@constants/colors';
+import {  getThemeColors } from '@constants/colors';
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme();

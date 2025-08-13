@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, useColorScheme } from 'react-
 import { useAuthContext } from '@contexts/AuthContext';
 import { getThemeColors, COLORS } from '@constants/colors';
 import HomeScreen from '@screens/HomeScreen';
+import ShopScreen from '@screens/ShopScreen';
 import AlbumScreen from '@screens/AlbumScreen';
 import ObjectDetailScreen from '@screens/ObjectDetailScreen';
 import MuseumScreen from '@screens/MuseumScreen';
@@ -82,6 +83,7 @@ export default function DrawerNavigator() {
       }}
     >
       <Drawer.Screen name="Home" component={HomeScreen} options={{ title: 'Inicio' }} />
+      <Drawer.Screen name="Shop" component={ShopScreen} options={{ title: 'Tienda' }} />
       <Drawer.Screen name="Album" component={AlbumScreen} options={{ title: 'Mi Álbum' }} />
       {/* ObjectDetail oculto del drawer */}
       <Drawer.Screen 
