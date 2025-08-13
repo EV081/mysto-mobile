@@ -5,7 +5,9 @@ import { getThemeColors, COLORS } from '@constants/colors';
 import HomeScreen from '@screens/HomeScreen';
 import AlbumScreen from '@screens/AlbumScreen';
 import ObjectDetailScreen from '@screens/ObjectDetailScreen';
-
+import MuseumScreen from '@screens/MuseumScreen';
+import MuseumForOneScreen from '@screens/MuseumforOneScreen';
+import RedSocialScreen from '@screens/RedSocialScreen';
 const Drawer = createDrawerNavigator();
 
 function CustomDrawerContent(props: any) {
@@ -89,6 +91,8 @@ export default function DrawerNavigator() {
           drawerItemStyle: { display: 'none' } // Esto oculta la opción del drawer
         }} 
       />
+      <Drawer.Screen name="Museum" component={MuseumScreen} options={{ title: 'Museos' }} />
+      <Drawer.Screen name= "RedSocial" component={RedSocialScreen} options= {{title: 'Red Social'}} />
     </Drawer.Navigator>
   );
 }

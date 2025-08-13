@@ -8,7 +8,9 @@ import LoginScreen from '@screens/LoginScreen';
 import RegisterScreen from '@screens/RegisterScreen';
 import WelcomeScreen from '@screens/WelcomeScreen';
 import DrawerNavigator from './DrawerNavigator';
-
+import MuseumScreen from '@screens/MuseumScreen';
+import MuseumforOneScreen from '@screens/MuseumforOneScreen';
+import RedSocialScreen from '@screens/RedSocialScreen';
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
@@ -53,6 +55,9 @@ export default function AppNavigator() {
         ) : (
           <>
             <Stack.Screen name="Main" component={DrawerNavigator} />
+            <Stack.Screen name="Museums" component={MuseumScreen} />
+            <Stack.Screen name="MuseumforOneScreen" component={MuseumforOneScreen} options={{ title: 'Detalle del museo' }}/>
+            <Stack.Screen name="RedSocial" component={RedSocialScreen} options={{ title: 'Red Social' }} />
           </>
         )}
       </Stack.Navigator>
