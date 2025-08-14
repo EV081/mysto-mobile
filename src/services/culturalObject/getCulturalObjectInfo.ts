@@ -1,10 +1,10 @@
-import { CulturalObjectResponseDto } from "../../interfaces/object/CulturalObjectResponse";
+import { CulturalObjectResponse } from "@interfaces/cuturalObject/CulturalObjectResponse";
 import Api from "@services/api";
 
 export async function getCulturalObjectInfo(objectId: number) {
   try {
     const api = await Api.getInstance();
-    const response = await api.get<void, CulturalObjectResponseDto>({
+    const response = await api.get<void, CulturalObjectResponse>({
       url: `/cultural-objects/${objectId}/info`
     });
     return response;

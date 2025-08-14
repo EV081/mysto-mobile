@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -13,24 +13,27 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
-import { RouteProp, useRoute, useNavigation } from '@react-navigation/native';
+import { RouteProp, useRoute, useNavigation, useFocusEffect, NavigationProp as BaseNavigationProp } from '@react-navigation/native';
 import { TouchableOpacity } from 'react-native-gesture-handler';
-
-import { CulturalObjectResponseDto, CulturalObjectType } from '../interfaces/object/CulturalObjectResponse';
+import { CulturalObjectResponse } from '@interfaces/cuturalObject/CulturalObjectResponse';
+import { CulturalObjectType } from '@interfaces/cuturalObject/CulturalObjectType';
 import { AlbumResponseDto } from '../interfaces/album/AlbumResponse';
-import { getCulturalObjectInfo } from '@services/object/culturalObject';
+import { getCulturalObjectInfo } from '@services/culturalObject/getCulturalObjectInfo';
 import { getThemeColors } from '@constants/colors';
 
 type ObjectDetailRouteProp = RouteProp<{
   ObjectDetail: {
     albumItem: AlbumResponseDto;
+    fromScreen?: 'Album' | 'RedSocial';
   };
 }, 'ObjectDetail'>;
 
-type NavigationProp = {
-  navigate: (screen: 'Album' | 'Home' | 'ObjectDetail', params?: any) => void;
-  goBack: () => void;
-};
+type NavigationProp = BaseNavigationProp<{
+  Album: undefined;
+  RedSocial: undefined;
+  Home: undefined;
+  ObjectDetail: any;
+}>;
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -47,18 +50,37 @@ export default function ObjectDetailScreen() {
   const colorScheme = useColorScheme();
   const colors = getThemeColors(colorScheme === 'dark');
   
-  const { albumItem } = route.params;
-  const [objectDetail, setObjectDetail] = useState<CulturalObjectResponseDto | null>(null);
+  const { albumItem, fromScreen } = route.params;
+  const [objectDetail, setObjectDetail] = useState<CulturalObjectResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
-  useEffect(() => {
-    loadObjectDetail();
-  }, []);
+  // Función de navegación inteligente
+  const handleBackPress = () => {
+    if (fromScreen) {
+      // Si conocemos el origen, navegar directamente allí
+      navigation.navigate(fromScreen);
+    } else {
+      // Si no, usar goBack como fallback
+      navigation.goBack();
+    }
+  };
 
-  const loadObjectDetail = async () => {
+  const getBackButtonText = () => {
+    switch (fromScreen) {
+      case 'Album':
+        return 'Volver';
+      case 'RedSocial':
+        return 'Volver';
+      default:
+        return 'Volver';
+    }
+  };
+  
+  const loadObjectDetail = useCallback(async () => {
     try {
       setLoading(true);
+      setCurrentImageIndex(0); // Reset image index
       const response = await getCulturalObjectInfo(albumItem.id);
       setObjectDetail(response.data);
     } catch (error) {
@@ -69,14 +91,24 @@ export default function ObjectDetailScreen() {
         [
           {
             text: 'Volver',
-            onPress: () => navigation.navigate('Album'),
+            onPress: handleBackPress, // ← Usar navegación inteligente
           },
         ]
       );
     } finally {
       setLoading(false);
     }
-  };
+  }, [albumItem.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadObjectDetail();
+    }, [loadObjectDetail])
+  );
+
+  useEffect(() => {
+    loadObjectDetail();
+  }, [loadObjectDetail, albumItem.id]);
 
   const renderStars = (qualification: number) => {
     const stars = [];
@@ -149,7 +181,7 @@ export default function ObjectDetailScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.text }]}>Cargando...</Text>
@@ -165,7 +197,7 @@ export default function ObjectDetailScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.text }]}>Error</Text>
@@ -177,11 +209,11 @@ export default function ObjectDetailScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.navigate('Album')} style={styles.backButton}>
+        <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.navigate('Album')} style={styles.titleButton}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Volver</Text>
+        <TouchableOpacity onPress={handleBackPress} style={styles.titleButton}>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>{getBackButtonText()}</Text>
         </TouchableOpacity>
       </View>
 
@@ -195,10 +227,6 @@ export default function ObjectDetailScreen() {
                 <Text style={[styles.title, { color: colors.text }]}>
                   {objectDetail.name}
                 </Text>
-                <View style={styles.obtainedBadge}>
-                  <Ionicons name="checkmark-circle" size={20} color="#10b981" />
-                  <Text style={styles.obtainedText}>Obtenido</Text>
-                </View>
               </View>
 
               <View style={styles.metaInfo}>
@@ -208,7 +236,6 @@ export default function ObjectDetailScreen() {
                     {typeTranslations[objectDetail.type] || objectDetail.type}
                   </Text>
                 </View>
-
                 <View style={styles.ratingContainer}>
                   <View style={styles.stars}>
                     {renderStars(objectDetail.qualification)}
@@ -226,11 +253,11 @@ export default function ObjectDetailScreen() {
                 </Text>
               </View>
 
-              {objectDetail.reward && (
+              {objectDetail.coins && (
                 <View style={styles.rewardContainer}>
                   <Ionicons name="gift-outline" size={16} color="#f59e0b" />
                   <Text style={[styles.rewardText, { color: colors.text }]}>
-                    {objectDetail.reward}
+                    {objectDetail.coins}
                   </Text>
                 </View>
               )}
@@ -239,7 +266,7 @@ export default function ObjectDetailScreen() {
                 {objectDetail.description}
               </Text>
 
-              {objectDetail.reviewIds && objectDetail.reviewIds.length > 0 && (
+              {objectDetail.reviews && objectDetail.reviews.length > 0 && (
                 <View style={styles.reviewsSection}>
                   <Text style={[styles.sectionTitle, { color: colors.text }]}>
                     Reseñas
@@ -247,7 +274,7 @@ export default function ObjectDetailScreen() {
                   <View style={styles.reviewCount}>
                     <Ionicons name="chatbubble-outline" size={16} color={colors.textSecondary} />
                     <Text style={[styles.reviewCountText, { color: colors.textSecondary }]}>
-                      {objectDetail.reviewIds.length} reseña{objectDetail.reviewIds.length !== 1 ? 's' : ''}
+                      {objectDetail.reviews.length} reseña{objectDetail.reviews.length !== 1 ? 's' : ''}
                     </Text>
                   </View>
                 </View>

@@ -83,12 +83,11 @@ export default function DrawerNavigator() {
     >
       <Drawer.Screen name="Home" component={HomeScreen} options={{ title: 'Inicio' }} />
       <Drawer.Screen name="Album" component={AlbumScreen} options={{ title: 'Mi Álbum' }} />
-      {/* ObjectDetail oculto del drawer */}
       <Drawer.Screen 
         name="ObjectDetail" 
         component={ObjectDetailScreen} 
         options={{ 
-          drawerItemStyle: { display: 'none' } // Esto oculta la opción del drawer
+          drawerItemStyle: { display: 'none' }
         }} 
       />
       <Drawer.Screen name="Museum" component={MuseumScreen} options={{ title: 'Museos' }} />

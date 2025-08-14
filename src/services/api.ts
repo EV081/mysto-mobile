@@ -5,15 +5,14 @@ import axios, {
 } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Clase Api para manejar peticiones HTTP en mobile
 export default class Api {
   private static _instance: Api | null = null;
+  private static _imageRecognitionInstance: Api | null = null;
   private _basePath: string;
   private _authorization: string | null;
 
   public set authorization(value: string | null) {
     this._authorization = value;
-    // Actualizar AsyncStorage de forma asíncrona
     if (value) {
       AsyncStorage.setItem('token', value).catch(error => {
         console.error('Error al guardar token en AsyncStorage:', error);
@@ -47,28 +46,39 @@ export default class Api {
     );
   }
 
-  // Obtener instancia singleton
+
   public static async getInstance() {
     if (!this._instance) {
-      // Usar solo la URL del backend desde .env
       const basePath = process.env.EXPO_PUBLIC_API_BASE_URL;
       if (!basePath) {
-        throw new Error('No se ha configurado la URL del backend.');
+        throw new Error('No se ha configurado la URL del backend principal.');
       }
-      // Recupera el token almacenado
       const token = await AsyncStorage.getItem('token');
       this._instance = new Api(basePath, token);
     }
     return this._instance;
   }
 
-  // Método para reinicializar la instancia (útil para testing o reset)
+  public static async getImageRecognitionInstance() {
+    if (!this._imageRecognitionInstance) {
+      const basePath = process.env.EXPO_PUBLIC_API_IMAGE_RECOGNITION;
+      if (!basePath) {
+        throw new Error('No se ha configurado la URL del microservicio de reconocimiento de imágenes.');
+      }
+      this._imageRecognitionInstance = new Api(basePath, null);
+    }
+    return this._imageRecognitionInstance;
+  }
   public static async resetInstance() {
     this._instance = null;
     return await this.getInstance();
   }
 
-  // Método genérico para peticiones
+  public static async resetImageRecognitionInstance() {
+    this._imageRecognitionInstance = null;
+    return await this.getImageRecognitionInstance();
+  }
+
   public async request<RequestType, ResponseType>(config: AxiosRequestConfig) {
     const headers: RawAxiosRequestHeaders = {
       'Content-Type': 'application/json',
@@ -80,7 +90,6 @@ export default class Api {
       baseURL: this._basePath,
       headers: headers,
     };
-    // Depuración: imprimir la solicitud
     console.log('[API REQUEST]', {
       url: configOptions.baseURL + (configOptions.url || ''),
       method: configOptions.method,
@@ -91,17 +100,13 @@ export default class Api {
     try {
       const response = await axios<RequestType, AxiosResponse<ResponseType>>(configOptions);
       
-      // Depuración: imprimir la respuesta exitosa
       console.log('[API RESPONSE SUCCESS]', {
         url: configOptions.baseURL + (configOptions.url || ''),
-        // method: configOptions.method,
-        // status: response.status,
         data: response.data,
       });
       
       return response;
     } catch (error: any) {
-      // Depuración: imprimir la respuesta de error
       console.log('[API RESPONSE ERROR]', {
         url: configOptions.baseURL + (configOptions.url || ''),
         method: configOptions.method,
@@ -110,6 +115,47 @@ export default class Api {
         data: error.response?.data,
         message: error.message,
         headers: error.response?.headers,
+      });
+      
+      throw error;
+    }
+  }
+
+  public async requestFormData<ResponseType>(config: AxiosRequestConfig) {
+    const headers: RawAxiosRequestHeaders = {
+      'Content-Type': 'multipart/form-data',
+      ...config.headers,
+    };
+
+    const configOptions: AxiosRequestConfig = {
+      ...config,
+      baseURL: this._basePath,
+      headers: headers,
+    };
+
+    console.log('[API FORMDATA REQUEST]', {
+      url: configOptions.baseURL + (configOptions.url || ''),
+      method: configOptions.method,
+      headers: configOptions.headers,
+    });
+    
+    try {
+      const response = await axios<FormData, AxiosResponse<ResponseType>>(configOptions);
+      
+      console.log('[API FORMDATA RESPONSE SUCCESS]', {
+        url: configOptions.baseURL + (configOptions.url || ''),
+        data: response.data,
+      });
+      
+      return response;
+    } catch (error: any) {
+      console.log('[API FORMDATA RESPONSE ERROR]', {
+        url: configOptions.baseURL + (configOptions.url || ''),
+        method: configOptions.method,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+        message: error.message,
       });
       
       throw error;
@@ -134,6 +180,18 @@ export default class Api {
       data,
     };
     return this.request<RequestBodyType, ResponseBodyType>(configOptions);
+  }
+
+  public postFormData<ResponseType>(
+    data: FormData,
+    options: AxiosRequestConfig,
+  ) {
+    const configOptions: AxiosRequestConfig = {
+      ...options,
+      method: 'POST',
+      data,
+    };
+    return this.requestFormData<ResponseType>(configOptions);
   }
 
   public delete(options: AxiosRequestConfig) {
@@ -167,4 +225,4 @@ export default class Api {
     };
     return this.request<RequestBodyType, ResponseBodyType>(configOptions);
   }
-} 
+}

@@ -11,10 +11,9 @@ export default function ObjetosListados() {
     const [objetos, setObjetos] = useState<CulturalObjectResponse[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-
     const route = useRoute<any>();
     const navigation = useNavigation<any>();
-    const objectId = route?.params?.objectId || 1; // Default to 1 if not provided
+    const objectId = route?.params?.objectId || 1; 
 
     useEffect(() => {
         const fetchData = async () => {
@@ -32,7 +31,6 @@ export default function ObjetosListados() {
             }
         };
 
-        // Only fetch data if user is authenticated
         if (session) {
             fetchData();
         } else {
@@ -41,12 +39,25 @@ export default function ObjetosListados() {
         }
     }, [objectId, session]);
 
-    // Render item for FlatList
+    const convertToAlbumItem = (item: CulturalObjectResponse) => {
+        return {
+            id: item.id,
+            name: item.name,
+            description: item.description,
+            type: item.type,
+            pictureUrls: item.pictureUrls,
+            isObtained: true, 
+        };
+    };
+
     const renderItem = ({ item }: { item: CulturalObjectResponse }) => (
         <View style={styles.publicationCard}>
             <TouchableOpacity
                 activeOpacity={0.8}
-                onPress={() => navigation.navigate('ObjectDetail', { id: item.id })}
+                onPress={() => navigation.navigate('ObjectDetail', { 
+                    albumItem: convertToAlbumItem(item),
+                    fromScreen: 'RedSocial'
+                })}
             >
                 {item.pictureUrls && item.pictureUrls.length > 0 ? (
                     <Image
@@ -69,7 +80,6 @@ export default function ObjetosListados() {
                         {item.description}
                     </Text>
                 )}
-                {/* Additional info */}
                 <View style={{ marginTop: 10 }}>
                     <Text style={{ fontSize: 14, color: '#64748b' }}>
                         <Text style={{ fontWeight: 'bold' }}>Puntos:</Text> {item.points}   <Text style={{ fontWeight: 'bold' }}>Monedas:</Text> {item.coins}
@@ -84,7 +94,6 @@ export default function ObjetosListados() {
                         <Text style={{ fontWeight: 'bold' }}>Museo:</Text> {item.museumName}
                     </Text>
                 </View>
-                {/* Reviews/Comments Card */}
                 <View style={{
                     backgroundColor: '#f1f5f9',
                     borderRadius: 8,
