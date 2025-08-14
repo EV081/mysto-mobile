@@ -3,10 +3,12 @@ import { View, FlatList, RefreshControl, StyleSheet, useColorScheme, Alert } fro
 import { Text, ActivityIndicator, SegmentedButtons } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AlbumResponseDto, AlbumStatsDto } from '@interfaces/album/AlbumResponse';
-import { getCompleteAlbum } from '../services/album/album';
+import { getCompleteAlbum } from '@services/album/getCompleteAlbum';
 import AlbumItem from '@components/AlbumItem';
 import { getThemeColors } from '@constants/colors';
 import { Ionicons } from '@expo/vector-icons';
+import SearchByImageButton from '@components/SearchByImageButton';
+import SimilarObjectsButton from '@components/SimilarObjectsButton';
 
 export default function AlbumScreen() {
   const [albumData, setAlbumData] = useState<{
@@ -23,7 +25,7 @@ export default function AlbumScreen() {
   
   const colorScheme = useColorScheme();
   const colors = getThemeColors(colorScheme === 'dark');
-
+  
   const loadAlbum = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -33,7 +35,6 @@ export default function AlbumScreen() {
         objects: response.data.contents,
         stats: response.data.stats
       });
-
     } catch (error: any) {
       console.error('Error cargando álbum:', error);
       Alert.alert(
@@ -46,16 +47,16 @@ export default function AlbumScreen() {
       setIsRefreshing(false);
     }
   }, []);
-
+  
   useEffect(() => {
     loadAlbum();
   }, [loadAlbum]);
-
+  
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
     loadAlbum();
   }, [loadAlbum]);
-
+  
   const displayedObjects = useMemo(() => {
     switch (filter) {
       case 'obtained':
@@ -66,22 +67,18 @@ export default function AlbumScreen() {
         return albumData.objects;
     }
   }, [albumData.objects, filter]);
-
+  
   const handleFilterChange = useCallback((newFilter: string) => {
     setFilter(newFilter);
   }, []);
-
-  const handleItemPress = useCallback((item: AlbumResponseDto) => {
-    console.log('Pressed item:', item.name, item.isObtained);
-  }, []);
-
+  
   const renderItem = useCallback(({ item }: { item: AlbumResponseDto }) => (
     <AlbumItem 
       item={item} 
       isObtained={item.isObtained}
     />
-  ), [handleItemPress]);
-
+  ), []);
+  
   const renderEmpty = useCallback(() => {
     if (isLoading) return null;
     
@@ -104,7 +101,6 @@ export default function AlbumScreen() {
           };
       }
     };
-
     const message = getEmptyMessage();
     
     return (
@@ -124,7 +120,7 @@ export default function AlbumScreen() {
       </View>
     );
   }, [isLoading, filter, colors]);
-
+  
   const renderHeader = useCallback(() => (
     <View style={styles.header}>
       <View style={styles.statsContainer}>
@@ -168,7 +164,7 @@ export default function AlbumScreen() {
       />
     </View>
   ), [albumData.stats, filter, handleFilterChange, colors]);
-
+  
   if (isLoading && !isRefreshing) {
     return (
       <SafeAreaView style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
@@ -179,7 +175,7 @@ export default function AlbumScreen() {
       </SafeAreaView>
     );
   }
-
+  
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <FlatList
@@ -199,6 +195,28 @@ export default function AlbumScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={displayedObjects.length === 0 ? styles.emptyList : styles.list}
         columnWrapperStyle={displayedObjects.length > 0 ? styles.row : undefined}
+      />
+      
+      <SearchByImageButton
+        expectedObjectId={2} //Este sería el id del goal, se usa para verificar si la respuesta de coincidencia es la misma para obtener el objeto, actualmente haarcodeado
+        similarityThreshold={0.75}
+        onSearchResult={(results) => {
+          console.log('Resultados:', results);
+        }}
+        onError={(error) => {
+          console.error('Error:', error);
+        }}
+      />
+
+      <SimilarObjectsButton
+        objectId={1} // Este el id del objeto a quien se quiere buscar sus similares, actualmente haarcodeado
+        topK={3}
+        onSimilarObjectsResult={(results) => {
+          console.log('Objetos similares:', results);
+        }}
+        onError={(error) => {
+          console.error('Error:', error);
+        }}
       />
     </SafeAreaView>
   );
