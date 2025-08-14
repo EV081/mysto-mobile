@@ -3,11 +3,13 @@ import { View, Text, StyleSheet, TouchableOpacity, useColorScheme } from 'react-
 import { useAuthContext } from '@contexts/AuthContext';
 import { getThemeColors, COLORS } from '@constants/colors';
 import HomeScreen from '@screens/HomeScreen';
+import ShopScreen from '@screens/ShopScreen';
 import AlbumScreen from '@screens/AlbumScreen';
 import ObjectDetailScreen from '@screens/ObjectDetailScreen';
 import MuseumScreen from '@screens/MuseumScreen';
 import MuseumForOneScreen from '@screens/MuseumforOneScreen';
 import RedSocialScreen from '@screens/RedSocialScreen';
+import MapScreen from '@screens/MapScreen';
 const Drawer = createDrawerNavigator();
 
 function CustomDrawerContent(props: any) {
@@ -82,6 +84,7 @@ export default function DrawerNavigator() {
       }}
     >
       <Drawer.Screen name="Home" component={HomeScreen} options={{ title: 'Inicio' }} />
+      <Drawer.Screen name="Shop" component={ShopScreen} options={{ title: 'Tienda' }} />
       <Drawer.Screen name="Album" component={AlbumScreen} options={{ title: 'Mi Álbum' }} />
       <Drawer.Screen 
         name="ObjectDetail" 
@@ -92,6 +95,7 @@ export default function DrawerNavigator() {
       />
       <Drawer.Screen name="Museum" component={MuseumScreen} options={{ title: 'Museos' }} />
       <Drawer.Screen name= "RedSocial" component={RedSocialScreen} options= {{title: 'Red Social'}} />
+      <Drawer.Screen name= "Mapa" component={MapScreen} options= {{title: 'Mapa'}} />
     </Drawer.Navigator>
   );
 }

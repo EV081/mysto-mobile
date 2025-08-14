@@ -2,7 +2,7 @@ module.exports = {
   root: true,
   extends: [
     '@react-native',
-    '@prettier',
+    '@prettier'
   ],
   rules: {
     'prettier/prettier': 'error',
