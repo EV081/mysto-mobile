@@ -1,6 +1,5 @@
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
 import { View, Text, StyleSheet, TouchableOpacity, useColorScheme } from 'react-native';
-import { useAuthContext } from '@contexts/AuthContext';
 import { getThemeColors, COLORS } from '@constants/colors';
 import HomeScreen from '@screens/HomeScreen';
 import ShopScreen from '@screens/ShopScreen';
@@ -10,10 +9,10 @@ import MuseumScreen from '@screens/MuseumScreen';
 import MuseumForOneScreen from '@screens/MuseumforOneScreen';
 import RedSocialScreen from '@screens/RedSocialScreen';
 import MapScreen from '@screens/MapScreen';
+import UserScreen from '@screens/UserScreen';
 const Drawer = createDrawerNavigator();
 
 function CustomDrawerContent(props: any) {
-  const { logout } = useAuthContext();
   const colorScheme = useColorScheme();
   const colors = getThemeColors(colorScheme === 'dark');
   const isDark = colorScheme === 'dark';
@@ -38,25 +37,6 @@ function CustomDrawerContent(props: any) {
       </View>
       <View style={{ flex: 1, marginTop: 8 }}>
         <DrawerItemList {...props} />
-      </View>
-      {/* Botón personalizado para cerrar sesión */}
-      <View style={{ alignItems: 'center', marginTop: 24, marginBottom: 16 }}>
-        <TouchableOpacity
-          onPress={logout}
-          style={{
-            borderColor: COLORS.primary,
-            borderWidth: 2,
-            borderRadius: 9999,
-            paddingVertical: 10,
-            paddingHorizontal: 32,
-            backgroundColor: 'transparent',
-            minWidth: 180,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Text style={{ color: '#ef4444', fontWeight: 'bold', fontSize: 16 }}>Cerrar Sesión</Text>
-        </TouchableOpacity>
       </View>
     </DrawerContentScrollView>
   );
@@ -84,6 +64,7 @@ export default function DrawerNavigator() {
       }}
     >
       <Drawer.Screen name="Home" component={HomeScreen} options={{ title: 'Inicio' }} />
+      <Drawer.Screen name="User" component={UserScreen} options={{ title: 'Mi Perfil' }} />
       <Drawer.Screen name="Shop" component={ShopScreen} options={{ title: 'Tienda' }} />
       <Drawer.Screen name="Album" component={AlbumScreen} options={{ title: 'Mi Álbum' }} />
       <Drawer.Screen 

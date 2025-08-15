@@ -6,7 +6,7 @@ import { getAllArticles } from "@services/articles/articles";
 import { ArticleItem } from "@components/Cards";
 import { COLORS } from "@constants/colors";
 
-export default function ShopScreen() {
+export default function ShopScreen() { // Estoy en tu cesped nebbecracker 🗣️ 
     const [articleItems, setArticleItems] = useState<ArticleResponse[]>([]);
     const [page, setPage] = useState(0);
     const [isLoading, setIsLoading] = useState(false);

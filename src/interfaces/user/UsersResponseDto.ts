@@ -5,6 +5,7 @@ export interface UsersResponseDto {
 	coins: number;
 	points: number;
 	role: UserRole;
+	url_image?: string;
 }
 
 export type UserRole = 'COLLAB' | 'CUSTOMER';
