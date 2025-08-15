@@ -4,11 +4,11 @@ import { Text, ActivityIndicator, SegmentedButtons } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AlbumResponseDto, AlbumStatsDto } from '@interfaces/album/AlbumResponse';
 import { getCompleteAlbum } from '@services/album/getCompleteAlbum';
-import AlbumItem from '@components/AlbumItem';
+import AlbumItem from '@components/Album/AlbumItem';
 import { getThemeColors } from '@constants/colors';
 import { Ionicons } from '@expo/vector-icons';
-import SearchByImageButton from '@components/SearchByImageButton';
-import SimilarObjectsButton from '@components/SimilarObjectsButton';
+import SearchByImageButton from '@components/ImageRecognition/SearchByImageButton';
+import SimilarObjectsButton from '@components/ImageRecognition/SimilarObjectsButton';
 
 export default function AlbumScreen() {
   const [albumData, setAlbumData] = useState<{

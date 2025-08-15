@@ -1,6 +1,6 @@
 import { View, Text, Image, StyleSheet, TouchableOpacity, useColorScheme } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { AlbumResponseDto } from '../interfaces/album/AlbumResponse';
+import { AlbumResponseDto } from '@interfaces/album/AlbumResponse';
 import { CulturalObjectType } from '@interfaces/cuturalObject/CulturalObjectType';
 import { getThemeColors } from '@constants/colors';
 import { Ionicons } from '@expo/vector-icons';

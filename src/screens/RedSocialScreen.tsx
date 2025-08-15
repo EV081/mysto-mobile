@@ -4,7 +4,7 @@ import ObjetosListados from '@components/ObjetosListados';
 export default function RedSocialScreen() {
   return (
     <View style={styles.container}>
-      <ObjetosListados /> // Estoy en tu cesped nebbecracker 🗣️ 
+      <ObjetosListados />
     </View>
   );
 }
