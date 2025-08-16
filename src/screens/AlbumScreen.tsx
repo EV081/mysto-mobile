@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { View, FlatList, RefreshControl, StyleSheet, useColorScheme, Alert } from 'react-native';
 import { Text, ActivityIndicator, SegmentedButtons } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,6 +9,7 @@ import { getThemeColors } from '@constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 import SearchByImageButton from '@components/ImageRecognition/SearchByImageButton';
 import SimilarObjectsButton from '@components/ImageRecognition/SimilarObjectsButton';
+import Pagination from '@components/common/Pagination';
 
 export default function AlbumScreen() {
   const [albumData, setAlbumData] = useState<{
@@ -22,19 +23,28 @@ export default function AlbumScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [filter, setFilter] = useState('all');
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
+  const pageSize = 12; 
+
+  const isInitialLoad = useRef(true);
   
   const colorScheme = useColorScheme();
   const colors = getThemeColors(colorScheme === 'dark');
   
-  const loadAlbum = useCallback(async () => {
+  const loadAlbum = useCallback(async (page: number = 0) => {
     try {
       setIsLoading(true);
-      const response = await getCompleteAlbum(0, 1000);
+      const response = await getCompleteAlbum(page, pageSize);
       
       setAlbumData({
         objects: response.data.contents,
         stats: response.data.stats
       });
+      setCurrentPage(response.data.page);
+      setTotalPages(response.data.totalPages);
+      setTotalElements(response.data.totalElements);
     } catch (error: any) {
       console.error('Error cargando álbum:', error);
       Alert.alert(
@@ -49,12 +59,20 @@ export default function AlbumScreen() {
   }, []);
   
   useEffect(() => {
-    loadAlbum();
+    if (isInitialLoad.current) {
+      isInitialLoad.current = false;
+      loadAlbum(0);
+    }
   }, [loadAlbum]);
   
   const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
-    loadAlbum();
+    loadAlbum(currentPage);
+  }, [loadAlbum, currentPage]);
+  
+  const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page);
+    loadAlbum(page);
   }, [loadAlbum]);
   
   const displayedObjects = useMemo(() => {
@@ -70,7 +88,11 @@ export default function AlbumScreen() {
   
   const handleFilterChange = useCallback((newFilter: string) => {
     setFilter(newFilter);
-  }, []);
+    if (newFilter !== filter) {
+      setCurrentPage(0);
+      loadAlbum(0);
+    }
+  }, [filter, loadAlbum]);
   
   const renderItem = useCallback(({ item }: { item: AlbumResponseDto }) => (
     <AlbumItem 
@@ -165,7 +187,17 @@ export default function AlbumScreen() {
     </View>
   ), [albumData.stats, filter, handleFilterChange, colors]);
   
-  if (isLoading && !isRefreshing) {
+  const renderFooter = useCallback(() => (
+    <Pagination
+      currentPage={currentPage}
+      totalPages={totalPages}
+      onPageChange={handlePageChange}
+      totalElements={totalElements}
+      pageSize={pageSize}
+    />
+  ), [currentPage, totalPages, handlePageChange, totalElements]);
+  
+  if (isLoading && !isRefreshing && isInitialLoad.current) {
     return (
       <SafeAreaView style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" />
@@ -192,6 +224,7 @@ export default function AlbumScreen() {
         }
         ListHeaderComponent={renderHeader}
         ListEmptyComponent={renderEmpty}
+        ListFooterComponent={displayedObjects.length > 0 ? renderFooter : null}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={displayedObjects.length === 0 ? styles.emptyList : styles.list}
         columnWrapperStyle={displayedObjects.length > 0 ? styles.row : undefined}
