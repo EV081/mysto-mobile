@@ -30,7 +30,7 @@ type ObjectDetailRouteProp = RouteProp<{
   ObjectDetail: {
     albumItem: AlbumResponseDto;
     culturalObject?: CulturalObjectResponse; // Add optional culturalObject parameter
-    fromScreen?: 'Album' | 'RedSocial';
+    fromScreen?: 'Album' | 'RedSocial' | 'Museo'; // To know where we came from
   };
 }, 'ObjectDetail'>;
 
@@ -38,11 +38,12 @@ type NavigationProp = BaseNavigationProp<{
   Album: undefined;
   RedSocial: undefined;
   Home: undefined;
+  Museo: undefined;
   ObjectDetail: any;
 }>;
 
 const { width: screenWidth } = Dimensions.get('window');
-
+  
 const typeTranslations: Record<CulturalObjectType, string> = {
   [CulturalObjectType.CERAMICS]: 'Cerámica',
   [CulturalObjectType.TEXTILES]: 'Textiles',
@@ -71,12 +72,11 @@ export default function ObjectDetailScreen() {
 
   // Función de navegación inteligente
   const handleBackPress = () => {
-    if (fromScreen) {
-      // Si conocemos el origen, navegar directamente allí
-      navigation.navigate(fromScreen);
-    } else {
-      // Si no, usar goBack como fallback
+    if (navigation.canGoBack()) {
       navigation.goBack();
+    } else if (fromScreen) {
+      // Si quieres forzar regresar a una pantalla específica en el root navigator
+      navigation.getParent()?.navigate(fromScreen as any);
     }
   };
 
@@ -85,6 +85,8 @@ export default function ObjectDetailScreen() {
       case 'Album':
         return 'Volver';
       case 'RedSocial':
+        return 'Volver';
+      case 'Museo':
         return 'Volver';
       default:
         return 'Volver';
@@ -329,12 +331,12 @@ export default function ObjectDetailScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
-          <Ionicons name="arrow-back" size={24} color={colors.text} />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={handleBackPress} style={styles.titleButton}>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>{getBackButtonText()}</Text>
-        </TouchableOpacity>
+      <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
+        <Ionicons name="arrow-back" size={24} color={colors.text} />
+      </TouchableOpacity>
+      <TouchableOpacity onPress={handleBackPress} style={styles.titleButton}>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>{getBackButtonText()}</Text>
+      </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>

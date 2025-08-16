@@ -1,17 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import {
-  Linking,
-  View,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  FlatList,
-  Image,
-  ScrollView,
-  TouchableOpacity,
-  Modal,
-  RefreshControl
-} from 'react-native';
+import {Linking, View, Text, StyleSheet, ActivityIndicator, FlatList, Image, ScrollView, TouchableOpacity, Modal, RefreshControl} from 'react-native';
 import { SafeAreaView, Platform, StatusBar } from 'react-native';
 import { COLORS } from '@constants/colors';
 import { useRoute, useNavigation } from '@react-navigation/native';
@@ -35,12 +23,10 @@ import { MuseumResponse } from '@interfaces/museum/MuseumResponse';
 
 export default function MuseumforOneScreen() {
   const route = useRoute<any>();
-  const navigation = useNavigation();
+const navigation = useNavigation<any>();
   const museumId = route?.params?.museumId as number;
   const onMuseumDeleted = route?.params?.onMuseumDeleted;
   const { session } = useAuthContext();
-
-  // Estados principales
   const [museum, setMuseum] = useState<MuseumResponse | null>(null);
   const [objects, setObjects] = useState<CulturalObjectResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,28 +35,16 @@ export default function MuseumforOneScreen() {
   const [formLoading, setFormLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [editingObject, setEditingObject] = useState<CulturalObjectResponse | null>(null);
-
-  // Estados de paginación simplificados
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
   const pageSize = 6;
-
-
-
-  // Refs para evitar dependencias circulares
   const isInitialLoad = useRef(true);
   const lastMuseumId = useRef<number | null>(null);
-
-  // Hooks personalizados
   const { toast, showSuccess, showError, showWarning, hideToast } = useToast();
-  
-  // Estados para búsqueda
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredObjects, setFilteredObjects] = useState<CulturalObjectResponse[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-
-
 
   // Función para manejar búsqueda
   const handleSearch = useCallback(async (query: string) => {
@@ -103,10 +77,6 @@ export default function MuseumforOneScreen() {
     setSearchQuery('');
     setFilteredObjects(objects);
   }, [objects]);
-
-
-
-
 
   // Efectos iniciales
   useEffect(() => {
@@ -279,6 +249,17 @@ export default function MuseumforOneScreen() {
     loadPageObjects();
   }, [museumId, showError]);
 
+  const convertToAlbumItem = (item: CulturalObjectResponse) => {
+      return {
+          id: item.id,
+          name: item.name,
+          description: item.description,
+          type: item.type,
+          pictureUrls: item.pictureUrls,
+          isObtained: true, 
+      };
+  };
+
   // Validaciones iniciales
   if (!museumId) {
     return (
@@ -334,7 +315,7 @@ export default function MuseumforOneScreen() {
               <Text style={styles.headerTitle} numberOfLines={1}>{"Detalles del Museo"}</Text>
               {userRole === 'COLLAB' && (
                 <TouchableOpacity onPress={handleDeleteMuseum} style={styles.deleteButton}>
-                  <Text style={styles.deleteIcon}>✖️</Text>
+                  <Text style={styles.deleteText}>Eliminar</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -384,39 +365,47 @@ export default function MuseumforOneScreen() {
                 {searchQuery ? 'No se encontraron objetos que coincidan con la búsqueda.' : 'No hay objetos culturales asociados.'}
               </Text>
             ) : (
-              <FlatList
-                data={filteredObjects}
-                keyExtractor={item => item.id.toString()}
-                renderItem={({ item }) => (
-                  <View style={styles.objectCard}>
-                    {item.pictureUrls && item.pictureUrls.length > 0 && (
-                      <Image source={{ uri: item.pictureUrls[0] }} style={styles.objectImage} />
-                    )}
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.objectTitle} numberOfLines={3}>{item.name}</Text>
-                      <Text style={styles.objectDesc} numberOfLines={3}>{item.description}</Text>
-                      {userRole === 'COLLAB' && (
-                        <View style={styles.objectActions}>
-                          <TouchableOpacity 
-                            onPress={() => handleEditCulturalObject(item)}
-                            style={styles.editObjectButton}
-                          >
-                            <Text style={styles.editObjectText}>Editar</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity 
-                            onPress={() => handleDeleteCulturalObject(item.id)}
-                            style={styles.deleteObjectButton}
-                          >
-                            <Text style={styles.deleteObjectText}>Eliminar</Text>
-                          </TouchableOpacity>
-                        </View>
+                <FlatList
+                  data={filteredObjects}
+                  keyExtractor={item => item.id.toString()}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      onPress={() => navigation.push('ObjectDetail', { 
+                      albumItem: convertToAlbumItem(item),
+                      culturalObject: item,
+                      fromScreen: 'Museo'
+                    })}
+                      style={styles.objectCard}
+                    >
+                      {item.pictureUrls && item.pictureUrls.length > 0 && (
+                        <Image source={{ uri: item.pictureUrls[0] }} style={styles.objectImage} />
                       )}
-                    </View>
-                  </View>
-                )}
-                scrollEnabled={false}
-                nestedScrollEnabled={true}
-              />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.objectTitle} numberOfLines={3}>{item.name}</Text>
+                        <Text style={styles.objectDesc} numberOfLines={3}>{item.description}</Text>
+
+                        {userRole === 'COLLAB' && (
+                          <View style={styles.objectActions}>
+                            <TouchableOpacity 
+                              onPress={() => handleEditCulturalObject(item)}
+                              style={styles.editObjectButton}
+                            >
+                              <Text style={styles.editObjectText}>Editar</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity 
+                              onPress={() => handleDeleteCulturalObject(item.id)}
+                              style={styles.deleteObjectButton}
+                            >
+                              <Text style={styles.deleteObjectText}>Eliminar</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                  scrollEnabled={false}
+                  nestedScrollEnabled={true}
+                />
             )}
 
             {/* Paginación */}
@@ -484,6 +473,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
     padding: 16
+  },
+    deleteText: {
+    color: COLORS.white,
+    fontWeight: 'bold',
+    fontSize: 16,
   },
   centered: {
     flex: 1,
@@ -618,8 +612,12 @@ const styles = StyleSheet.create({
     marginLeft: 0,
   },
   deleteButton: {
-    padding: 8,
-    marginLeft: 'auto',
+    backgroundColor: COLORS.button.danger,
+    paddingVertical: 10,
+    right: -50,   
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    alignItems: 'center',
   },
   deleteIcon: {
     fontSize: 20,

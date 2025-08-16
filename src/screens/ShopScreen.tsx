@@ -5,42 +5,59 @@ import { ArticleResponse } from "@interfaces/article/ArticleResponse";
 import { getAllArticles } from "@services/articles/articles";
 import { ArticleItem } from "@components/Cards";
 import { COLORS } from "@constants/colors";
+import { PagedResponse } from '@interfaces/common/PagedResponse';
+import { useToast } from '@hooks/useToast';
+import Pagination from '@components/common/Pagination';
 
 export default function ShopScreen() { // Estoy en tu cesped nebbecracker 🗣️ 
     const [articleItems, setArticleItems] = useState<ArticleResponse[]>([]);
-    const [page, setPage] = useState(0);
     const [isLoading, setIsLoading] = useState(false);
-    const [totalPages, setTotalPages] = useState(1);
-    const pageSize = 10;
+    const [searchQuery] = useState('');
+    const {showError} = useToast();
+    const [currentPage, setCurrentPage] = useState(0);
+    const [totalPages, setTotalPages] = useState(0);
+    const [totalElements, setTotalElements] = useState(0);
+    const pageSize = 6;
+    // Cargar artiuclos de la nueva página
+    const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page);
 
-
-    const fetchArticles = useCallback(async () => {
-        setIsLoading(true);
+    const loadPageObjects = async () => {
         try {
-            const articles = await getAllArticles(page, pageSize);
-            setArticleItems(articles.contents);
-            setTotalPages(articles.totalPages);
+        const data = await getAllArticles(page, pageSize);
+        setArticleItems(data.contents);
+        setCurrentPage(data.paginaActual);
+        setTotalPages(data.totalPaginas);
+        setTotalElements(data.totalElementos);
         } catch (e) {
-            console.error("Error fetching articles:", e);
-            alert("Error al cargar los artículos. Por favor, inténtalo de nuevo más tarde.");
+        showError("No se pudieron cargar los objetos culturales");
+        }
+    };
+
+    loadPageObjects();
+    }, [showError]);
+
+    // Primero declaras fetchArticles
+    const fetchArticles = useCallback(async () => {
+        try {
+            setIsLoading(true);
+            const data: PagedResponse<ArticleResponse> = await getAllArticles(currentPage, pageSize);
+            setArticleItems(data.contents);
+            setCurrentPage(data.paginaActual);
+            setTotalPages(data.totalPaginas);
+            setTotalElements(data.totalElementos);
+        } catch (e) {
+            showError('No se pudieron cargar los articulos');
         } finally {
             setIsLoading(false);
         }
-    }, [page]);
+    }, [currentPage, pageSize, showError]);
 
-    const nextPage = () => {
-        if (page + 1 >= totalPages || isLoading) return;
-        setPage(p => p + 1);
-    }
-
-    const prevPage = () => {
-        if (page <= 0 || isLoading) return;
-        setPage(p => p - 1);
-    }
-
+    // Luego lo usas en useEffect
     useEffect(() => {
         fetchArticles();
     }, [fetchArticles]);
+
 
     const renderItem = ({ item }: { item: ArticleResponse }) => <ArticleItem data={item} />;
 
@@ -60,18 +77,15 @@ export default function ShopScreen() { // Estoy en tu cesped nebbecracker 🗣�
                 onRefresh={fetchArticles}
                 showsVerticalScrollIndicator={false}
             />
-            <View style={styles.paginationBar}>
-                <Pressable style={({ pressed }) => [styles.pageBtn, (page <= 0 || isLoading) && styles.pageBtnDisabled, pressed && styles.pageBtnPressed]} disabled={page <= 0 || isLoading} onPress={prevPage}>
-                    <Text style={styles.pageBtnText}>Anterior</Text>
-                </Pressable>
-                <View style={styles.pageIndicator}>
-                    <Text style={styles.pageNumber}>Página {page + 1} / {totalPages}</Text>
-                    {isLoading && <ActivityIndicator size="small" color={COLORS.primary} style={{ marginLeft: 8 }} />}
-                </View>
-                <Pressable style={({ pressed }) => [styles.pageBtn, (page + 1 >= totalPages || isLoading) && styles.pageBtnDisabled, pressed && styles.pageBtnPressed]} disabled={page + 1 >= totalPages || isLoading} onPress={nextPage}>
-                    <Text style={styles.pageBtnText}>Siguiente</Text>
-                </Pressable>
-            </View>
+            {!searchQuery && articleItems.length > 0 && (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={handlePageChange}
+                totalElements={totalElements}
+                pageSize={pageSize}
+              />
+            )}
         </SafeAreaView>
     );
 }
