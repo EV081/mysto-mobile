@@ -21,25 +21,17 @@ import { PagedResponse } from '@interfaces/common/PagedResponse';
 export default function MuseumScreen() {
   const { role } = useAuthState();
   const navigation = useNavigation();
-  
-  // Estados principales
   const [museums, setMuseums] = useState<MuseumResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editingMuseum, setEditingMuseum] = useState<MuseumResponse | null>(null);
-  
-  // Estados de paginación simplificados
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
   const pageSize = 6;
-
-  // Refs para evitar dependencias circulares
   const isInitialLoad = useRef(true);
-  
-  // Hooks personalizados
   const { toast, showSuccess, showError, hideToast } = useToast();
   const { filteredData: filteredMuseums, handleSearch, clearSearch, searchQuery } = useSearch(
     museums,
