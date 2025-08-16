@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card } from 'react-native-paper';
@@ -20,10 +21,15 @@ import { CulturalObjectType } from '@interfaces/cuturalObject/CulturalObjectType
 import { AlbumResponseDto } from '../interfaces/album/AlbumResponse';
 import { getCulturalObjectInfo } from '@services/culturalObject/getCulturalObjectInfo';
 import { getThemeColors } from '@constants/colors';
+import { getReviewsByCulturalObject } from '@services/reviews/getReviewsByCulturalObject';
+import { createReviewCulturalObject } from '@services/reviews/createReviewCulturalObject';
+import { ReviewResponseDto } from '@interfaces/reviews/ReviewResponse';
+import { useAuthState } from '../hooks/useAuth';
 
 type ObjectDetailRouteProp = RouteProp<{
   ObjectDetail: {
     albumItem: AlbumResponseDto;
+    culturalObject?: CulturalObjectResponse; // Add optional culturalObject parameter
     fromScreen?: 'Album' | 'RedSocial';
   };
 }, 'ObjectDetail'>;
@@ -49,11 +55,19 @@ export default function ObjectDetailScreen() {
   const navigation = useNavigation<NavigationProp>();
   const colorScheme = useColorScheme();
   const colors = getThemeColors(colorScheme === 'dark');
+  const { session } = useAuthState();
   
-  const { albumItem, fromScreen } = route.params;
-  const [objectDetail, setObjectDetail] = useState<CulturalObjectResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { albumItem, culturalObject, fromScreen } = route.params;
+  const [objectDetail, setObjectDetail] = useState<CulturalObjectResponse | null>(culturalObject || null);
+  const [loading, setLoading] = useState(!culturalObject); // Don't load if we already have the data
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  
+  // Comment-related state
+  const [reviews, setReviews] = useState<ReviewResponseDto[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+  const [commentInput, setCommentInput] = useState('');
+  const [rating, setRating] = useState(5);
+  const [submittingComment, setSubmittingComment] = useState(false);
 
   // Función de navegación inteligente
   const handleBackPress = () => {
@@ -78,6 +92,13 @@ export default function ObjectDetailScreen() {
   };
   
   const loadObjectDetail = useCallback(async () => {
+    // If we already have the cultural object data, don't fetch again
+    if (culturalObject) {
+      setObjectDetail(culturalObject);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setCurrentImageIndex(0); // Reset image index
@@ -98,7 +119,102 @@ export default function ObjectDetailScreen() {
     } finally {
       setLoading(false);
     }
+  }, [albumItem.id, culturalObject]);
+
+  const fetchReviews = useCallback(async () => {
+    if (!albumItem.id) return;
+    
+    try {
+      setLoadingReviews(true);
+      const reviewsData = await getReviewsByCulturalObject(albumItem.id, 0, 20);
+      setReviews(reviewsData.contents || []);
+    } catch (error) {
+      console.error('Error fetching reviews:', error);
+      setReviews([]);
+    } finally {
+      setLoadingReviews(false);
+    }
   }, [albumItem.id]);
+
+  const handleCommentSubmit = async () => {
+    const commentText = commentInput.trim();
+    
+    if (!commentText) {
+      Alert.alert('Error', 'Por favor ingresa un comentario');
+      return;
+    }
+
+    if (commentText.length < 10) {
+      Alert.alert('Error', 'El comentario debe tener al menos 10 caracteres para que el análisis de sentimiento funcione correctamente');
+      return;
+    }
+
+    if (commentText.length > 500) {
+      Alert.alert('Error', 'El comentario no puede exceder 500 caracteres');
+      return;
+    }
+
+    if (rating < 1 || rating > 5) {
+      Alert.alert('Error', 'La calificación debe ser entre 1 y 5 estrellas');
+      return;
+    }
+
+    if (!session) {
+      Alert.alert('Error', 'Debes iniciar sesión para comentar');
+      return;
+    }
+
+    try {
+      setSubmittingComment(true);
+      
+      const reviewData = {
+        content: commentText.trim(),
+        rating: rating
+      };
+      
+      await createReviewCulturalObject(albumItem.id, reviewData);
+      
+      // Clear the input and reset rating
+      setCommentInput('');
+      setRating(5);
+      
+      // Refresh reviews
+      await fetchReviews();
+      
+      Alert.alert('Éxito', 'Comentario y calificación agregados correctamente');
+    } catch (error: any) {
+      console.error('Error submitting comment:', error);
+      Alert.alert('Error', error.message || 'No se pudo agregar el comentario');
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
+
+  const renderRatingSelector = () => {
+    const stars = [];
+    
+    for (let i = 1; i <= 5; i++) {
+      stars.push(
+        <TouchableOpacity
+          key={i}
+          onPress={() => setRating(i)}
+          style={{ marginHorizontal: 2 }}
+        >
+          <Ionicons
+            name={i <= rating ? 'star' : 'star-outline'}
+            size={20}
+            color={i <= rating ? '#fbbf24' : '#d1d5db'}
+          />
+        </TouchableOpacity>
+      );
+    }
+    
+    return (
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        {stars}
+      </View>
+    );
+  };
 
   useFocusEffect(
     useCallback(() => {
@@ -109,6 +225,10 @@ export default function ObjectDetailScreen() {
   useEffect(() => {
     loadObjectDetail();
   }, [loadObjectDetail, albumItem.id]);
+
+  useEffect(() => {
+    fetchReviews();
+  }, [fetchReviews]);
 
   const renderStars = (qualification: number) => {
     const stars = [];
@@ -279,6 +399,106 @@ export default function ObjectDetailScreen() {
                   </View>
                 </View>
               )}
+            </View>
+          </Card>
+          
+          {/* Comments Section */}
+          <Card style={[styles.card, { backgroundColor: colors.cardBackground, marginTop: 16 }]}>
+            <View style={styles.cardContent}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                Comentarios y Calificaciones
+              </Text>
+              
+              {/* Add Comment Section */}
+              {session && (
+                <View style={styles.addCommentSection}>
+                  <Text style={[styles.addCommentLabel, { color: colors.text }]}>Agregar comentario:</Text>
+                  
+                  {/* Rating Selector */}
+                  <View style={styles.ratingSection}>
+                    <Text style={[styles.ratingLabel, { color: colors.text }]}>Tu calificación:</Text>
+                    {renderRatingSelector()}
+                  </View>
+                  
+                  {/* Comment Input */}
+                  <TextInput
+                    style={[styles.commentInput, { 
+                      borderColor: colors.textSecondary, 
+                      color: colors.text,
+                      backgroundColor: colors.background
+                    }]}
+                    placeholder="Escribe tu comentario aquí..."
+                    placeholderTextColor={colors.textSecondary}
+                    value={commentInput}
+                    onChangeText={setCommentInput}
+                    multiline
+                    numberOfLines={3}
+                    maxLength={500}
+                  />
+                  
+                  {/* Submit Button */}
+                  <TouchableOpacity
+                    style={[
+                      styles.submitButton,
+                      submittingComment && styles.submitButtonDisabled
+                    ]}
+                    onPress={handleCommentSubmit}
+                    disabled={submittingComment || !commentInput.trim()}
+                  >
+                    {submittingComment ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <Ionicons name="send" size={16} color="#fff" style={{ marginRight: 8 }} />
+                        <Text style={styles.submitButtonText}>Enviar Comentario</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
+              
+              {/* Comments List */}
+              <View style={styles.commentsSection}>
+                {loadingReviews ? (
+                  <View style={[styles.loadingContainer, { paddingVertical: 20 }]}>
+                    <ActivityIndicator size="small" color={colors.textSecondary} />
+                    <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+                      Cargando comentarios...
+                    </Text>
+                  </View>
+                ) : reviews.length > 0 ? (
+                  reviews.map((review) => (
+                    <View key={review.id} style={[styles.commentItem, { borderBottomColor: colors.textSecondary }]}>
+                      <View style={styles.commentHeader}>
+                        <View style={styles.commentRating}>
+                          {[...Array(5)].map((_, starIdx) => (
+                            <Ionicons
+                              key={starIdx}
+                              name={starIdx < review.rating ? 'star' : 'star-outline'}
+                              size={14}
+                              color={starIdx < review.rating ? '#fbbf24' : colors.textSecondary}
+                            />
+                          ))}
+                        </View>
+                        <Text style={[styles.commentDate, { color: colors.textSecondary }]}>
+                          {new Date(review.createdAt).toLocaleDateString('es-ES', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          })}
+                        </Text>
+                      </View>
+                      <Text style={[styles.commentText, { color: colors.text }]}>
+                        {review.content}
+                      </Text>
+                    </View>
+                  ))
+                ) : (
+                  <Text style={[styles.noCommentsText, { color: colors.textSecondary }]}>
+                    Sin comentarios aún. ¡Sé el primero en comentar!
+                  </Text>
+                )}
+              </View>
             </View>
           </Card>
         </View>
@@ -462,5 +682,84 @@ const styles = StyleSheet.create({
   reviewCountText: {
     fontSize: 14,
     marginLeft: 6,
+  },
+  // Comments section styles
+  addCommentSection: {
+    marginTop: 20,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  addCommentLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  ratingSection: {
+    marginBottom: 12,
+  },
+  ratingLabel: {
+    fontSize: 14,
+    marginBottom: 6,
+  },
+  commentInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 14,
+    textAlignVertical: 'top',
+    marginBottom: 12,
+    minHeight: 80,
+  },
+  submitButton: {
+    backgroundColor: '#10b981',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  submitButtonDisabled: {
+    backgroundColor: '#9ca3af',
+  },
+  submitButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  commentsSection: {
+    marginTop: 20,
+  },
+  loadingText: {
+    fontSize: 14,
+    marginTop: 8,
+  },
+  commentItem: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  commentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  commentRating: {
+    flexDirection: 'row',
+  },
+  commentDate: {
+    fontSize: 12,
+  },
+  commentText: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  noCommentsText: {
+    textAlign: 'center',
+    fontSize: 14,
+    fontStyle: 'italic',
+    paddingVertical: 20,
   },
 });

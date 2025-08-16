@@ -1,36 +1,75 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, Image, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Image, ActivityIndicator, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { getListAllObjects } from '@services/museum/getListAllObjects';
 import { CulturalObjectResponse } from '@interfaces/cuturalObject/CulturalObjectResponse';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useAuthState } from '../hooks/useAuth';
 import { COLORS } from '@constants/colors';
+import { Button } from 'react-native-paper';
+import { createReviewCulturalObject } from '@services/reviews/createReviewCulturalObject';
+import { getReviewsByCulturalObject } from '@services/reviews/getReviewsByCulturalObject';
+import { ReviewResponseDto } from '@interfaces/reviews/ReviewResponse';
+import { Ionicons } from '@expo/vector-icons';
 
-export default function ObjetosListados() {
+interface ObjetosListadosProps {
+    onObjectPress?: (objectId: string) => void;
+}
+
+export default function ObjetosListados({ onObjectPress }: ObjetosListadosProps) {
     const { session } = useAuthState();
     const [objetos, setObjetos] = useState<CulturalObjectResponse[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [commentInputs, setCommentInputs] = useState<{ [key: number]: string }>({});
+    const [ratings, setRatings] = useState<{ [key: number]: number }>({});
+    const [submittingComments, setSubmittingComments] = useState<{ [key: number]: boolean }>({});
+    const [reviews, setReviews] = useState<{ [key: number]: ReviewResponseDto[] }>({});
+    const [loadingReviews, setLoadingReviews] = useState<{ [key: number]: boolean }>({});
     const route = useRoute<any>();
     const navigation = useNavigation<any>();
     const objectId = route?.params?.objectId || 1; 
 
     useEffect(() => {
-        const fetchData = async () => {
-            try {
-                setLoading(true);
-                const data = await getListAllObjects(0, 10, objectId);
-                setObjetos(data.contents || []);
-                setError(null);
-            } catch (err) {
-                console.error('Error al obtener objetos:', err);
-                setError('No se pudieron cargar los objetos.');
-                setObjetos([]);
-            } finally {
-                setLoading(false);
-            }
-        };
+        fetchData();
+    }, [objectId, session]);
 
+    const fetchData = async () => {
+        try {
+            setLoading(true);
+            const data = await getListAllObjects(0, 10, objectId);
+            setObjetos(data.contents || []);
+            setError(null);
+
+            // Fetch reviews for each cultural object
+            if (data.contents && data.contents.length > 0) {
+                for (const objeto of data.contents) {
+                    fetchReviewsForObject(objeto.id);
+                }
+            }
+        } catch (err) {
+            console.error('Error al obtener objetos:', err);
+            setError('No se pudieron cargar los objetos.');
+            setObjetos([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchReviewsForObject = async (culturalObjectId: number) => {
+        try {
+            setLoadingReviews(prev => ({ ...prev, [culturalObjectId]: true }));
+            const reviewsData = await getReviewsByCulturalObject(culturalObjectId, 0, 10);
+            setReviews(prev => ({ ...prev, [culturalObjectId]: reviewsData.contents || [] }));
+        } catch (error) {
+            console.error(`Error fetching reviews for object ${culturalObjectId}:`, error);
+            // Set empty array if there's an error or no reviews
+            setReviews(prev => ({ ...prev, [culturalObjectId]: [] }));
+        } finally {
+            setLoadingReviews(prev => ({ ...prev, [culturalObjectId]: false }));
+        }
+    };
+
+    useEffect(() => {
         if (session) {
             fetchData();
         } else {
@@ -50,12 +89,109 @@ export default function ObjetosListados() {
         };
     };
 
+    const handleCommentSubmit = async (culturalObjectId: number) => {
+        const commentText = commentInputs[culturalObjectId]?.trim();
+        const rating = ratings[culturalObjectId] || 5; // Default to 5 stars if not selected
+        
+        if (!commentText) {
+            Alert.alert('Error', 'Por favor ingresa un comentario');
+            return;
+        }
+
+        if (commentText.length < 10) {
+            Alert.alert('Error', 'El comentario debe tener al menos 10 caracteres para que el análisis de sentimiento funcione correctamente');
+            return;
+        }
+
+        if (commentText.length > 500) {
+            Alert.alert('Error', 'El comentario no puede exceder 500 caracteres');
+            return;
+        }
+
+        if (rating < 1 || rating > 5) {
+            Alert.alert('Error', 'La calificación debe ser entre 1 y 5 estrellas');
+            return;
+        }
+
+        if (!session) {
+            Alert.alert('Error', 'Debes iniciar sesión para comentar');
+            return;
+        }
+
+        try {
+            setSubmittingComments(prev => ({ ...prev, [culturalObjectId]: true }));
+            
+            const reviewData = {
+                content: commentText.trim(),
+                rating: rating
+            };
+            
+            console.log('Submitting review with data:', reviewData);
+            console.log('Cultural object ID:', culturalObjectId);
+            
+            await createReviewCulturalObject(culturalObjectId, reviewData);
+            
+            // Clear the input and rating
+            setCommentInputs(prev => ({ ...prev, [culturalObjectId]: '' }));
+            setRatings(prev => ({ ...prev, [culturalObjectId]: 5 }));
+            
+            // Refresh reviews for this specific object
+            await fetchReviewsForObject(culturalObjectId);
+            
+            Alert.alert('Éxito', 'Comentario y calificación agregados correctamente');
+        } catch (error: any) {
+            console.error('Error submitting comment:', error);
+            Alert.alert('Error', error.message || 'No se pudo agregar el comentario');
+        } finally {
+            setSubmittingComments(prev => ({ ...prev, [culturalObjectId]: false }));
+        }
+    };
+
+    const updateCommentInput = (culturalObjectId: number, text: string) => {
+        setCommentInputs(prev => ({ ...prev, [culturalObjectId]: text }));
+    };
+
+    const updateRating = (culturalObjectId: number, rating: number) => {
+        setRatings(prev => ({ ...prev, [culturalObjectId]: rating }));
+    };
+
+    const renderStars = (culturalObjectId: number) => {
+        const currentRating = ratings[culturalObjectId] || 5;
+        const stars = [];
+        
+        for (let i = 1; i <= 5; i++) {
+            stars.push(
+                <TouchableOpacity
+                    key={i}
+                    onPress={() => updateRating(culturalObjectId, i)}
+                    style={{ marginHorizontal: 2 }}
+                >
+                    <Ionicons
+                        name={i <= currentRating ? 'star' : 'star-outline'}
+                        size={20}
+                        color={i <= currentRating ? '#fbbf24' : '#d1d5db'}
+                    />
+                </TouchableOpacity>
+            );
+        }
+        
+        return (
+            <View style={styles.starsContainer}>
+                <Text style={styles.ratingLabel}>Calificación:</Text>
+                <View style={styles.starsRow}>
+                    {stars}
+                </View>
+            </View>
+        );
+    };
+
     const renderItem = ({ item }: { item: CulturalObjectResponse }) => (
         <View style={styles.publicationCard}>
             <TouchableOpacity
                 activeOpacity={0.8}
                 onPress={() => navigation.navigate('ObjectDetail', { 
                     albumItem: convertToAlbumItem(item),
+                    culturalObject: item, // Pass the complete object data
                     fromScreen: 'RedSocial'
                 })}
             >
@@ -101,21 +237,75 @@ export default function ObjetosListados() {
                     marginTop: 14,
                 }}>
                     <Text style={{ fontWeight: 'bold', color: COLORS.primary, marginBottom: 4 }}>Comentarios:</Text>
-                    {item.reviews && item.reviews.length > 0 ? (
-                        item.reviews.slice(0, 3).map((review, idx) => (
-                            <Text key={idx} style={{ fontSize: 13, color: '#334155', marginBottom: 2 }} numberOfLines={2} ellipsizeMode="tail">
-                                • {review}
-                            </Text>
+                    {loadingReviews[item.id] ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8 }}>
+                            <ActivityIndicator size="small" color={COLORS.primary} />
+                            <Text style={{ fontSize: 13, color: '#64748b', marginLeft: 8 }}>Cargando comentarios...</Text>
+                        </View>
+                    ) : reviews[item.id] && reviews[item.id].length > 0 ? (
+                        reviews[item.id].slice(0, 3).map((review, idx) => (
+                            <View key={review.id} style={{ marginBottom: 4 }}>
+                                <Text style={{ fontSize: 13, color: '#334155', marginBottom: 1 }} numberOfLines={2} ellipsizeMode="tail">
+                                    • {review.content}
+                                </Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 12 }}>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 8 }}>
+                                        {[...Array(5)].map((_, starIdx) => (
+                                            <Ionicons
+                                                key={starIdx}
+                                                name={starIdx < review.rating ? 'star' : 'star-outline'}
+                                                size={12}
+                                                color={starIdx < review.rating ? '#fbbf24' : '#d1d5db'}
+                                            />
+                                        ))}
+                                    </View>
+                                    <Text style={{ fontSize: 11, color: '#9ca3af' }}>
+                                        {new Date(review.createdAt).toLocaleDateString()}
+                                    </Text>
+                                </View>
+                            </View>
                         ))
                     ) : (
                         <Text style={{ fontSize: 13, color: '#64748b' }}>Sin comentarios.</Text>
                     )}
-                    {item.reviews && item.reviews.length > 3 && (
+                    {reviews[item.id] && reviews[item.id].length > 3 && (
                         <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                            ...y {item.reviews.length - 3} más
+                            ...y {reviews[item.id].length - 3} comentarios más
                         </Text>
                     )}
                 </View>
+                
+                {/* Comment input section */}
+                {session && (
+                    <View style={styles.commentInputContainer}>
+                        <View style={{ flex: 1 }}>
+                            {renderStars(item.id)}
+                            <TextInput
+                                style={styles.commentInput}
+                                placeholder="Agrega un comentario..."
+                                placeholderTextColor="#9ca3af"
+                                value={commentInputs[item.id] || ''}
+                                onChangeText={(text) => updateCommentInput(item.id, text)}
+                                multiline
+                                numberOfLines={2}
+                            />
+                        </View>
+                        <TouchableOpacity
+                            style={[
+                                styles.commentButton,
+                                submittingComments[item.id] && styles.commentButtonDisabled
+                            ]}
+                            onPress={() => handleCommentSubmit(item.id)}
+                            disabled={submittingComments[item.id] || !commentInputs[item.id]?.trim()}
+                        >
+                            {submittingComments[item.id] ? (
+                                <ActivityIndicator size="small" color="#fff" />
+                            ) : (
+                                <Ionicons name="send" size={16} color="#fff" />
+                            )}
+                        </TouchableOpacity>
+                    </View>
+                )}
             </View>
         </View>
     );
@@ -280,5 +470,49 @@ const styles = StyleSheet.create({
         color: 'white',
         fontSize: 16,
         fontWeight: '600',
+    },
+    commentInputContainer: {
+        flexDirection: 'row',
+        alignItems: 'flex-end',
+        marginTop: 12,
+        paddingHorizontal: 2,
+    },
+    commentInput: {
+        borderWidth: 1,
+        borderColor: '#d1d5db',
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        marginRight: 8,
+        backgroundColor: 'white',
+        fontSize: 14,
+        maxHeight: 80,
+        textAlignVertical: 'top',
+        marginTop: 4,
+    },
+    commentButton: {
+        backgroundColor: COLORS.primary,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderRadius: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+        minWidth: 44,
+    },
+    commentButtonDisabled: {
+        backgroundColor: '#94a3b8',
+    },
+    starsContainer: {
+        marginBottom: 8,
+    },
+    ratingLabel: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#374151',
+        marginBottom: 4,
+    },
+    starsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
     },
 });
