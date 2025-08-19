@@ -40,7 +40,6 @@ export default function ObjetosListados({ onObjectPress }: ObjetosListadosProps)
             setObjetos(data.contents || []);
             setError(null);
 
-            // Fetch reviews for each cultural object
             if (data.contents && data.contents.length > 0) {
                 for (const objeto of data.contents) {
                     fetchReviewsForObject(objeto.id);
@@ -62,7 +61,6 @@ export default function ObjetosListados({ onObjectPress }: ObjetosListadosProps)
             setReviews(prev => ({ ...prev, [culturalObjectId]: reviewsData.contents || [] }));
         } catch (error) {
             console.error(`Error fetching reviews for object ${culturalObjectId}:`, error);
-            // Set empty array if there's an error or no reviews
             setReviews(prev => ({ ...prev, [culturalObjectId]: [] }));
         } finally {
             setLoadingReviews(prev => ({ ...prev, [culturalObjectId]: false }));
@@ -91,7 +89,7 @@ export default function ObjetosListados({ onObjectPress }: ObjetosListadosProps)
 
     const handleCommentSubmit = async (culturalObjectId: number) => {
         const commentText = commentInputs[culturalObjectId]?.trim();
-        const rating = ratings[culturalObjectId] || 5; // Default to 5 stars if not selected
+        const rating = ratings[culturalObjectId] || 5;
         
         if (!commentText) {
             Alert.alert('Error', 'Por favor ingresa un comentario');
@@ -131,11 +129,9 @@ export default function ObjetosListados({ onObjectPress }: ObjetosListadosProps)
             
             await createReviewCulturalObject(culturalObjectId, reviewData);
             
-            // Clear the input and rating
             setCommentInputs(prev => ({ ...prev, [culturalObjectId]: '' }));
             setRatings(prev => ({ ...prev, [culturalObjectId]: 5 }));
             
-            // Refresh reviews for this specific object
             await fetchReviewsForObject(culturalObjectId);
             
             Alert.alert('Éxito', 'Comentario y calificación agregados correctamente');

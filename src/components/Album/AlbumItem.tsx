@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
   cardFrame: {
     borderRadius: 10,
     padding: 3,
-    minHeight: 240, // Reducido de 280
+    minHeight: 240, 
   },
   innerBorder: {
     flex: 1,
