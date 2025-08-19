@@ -7,8 +7,6 @@ import { getCompleteAlbum } from '@services/album/getCompleteAlbum';
 import AlbumItem from '@components/Album/AlbumItem';
 import { getThemeColors } from '@constants/colors';
 import { Ionicons } from '@expo/vector-icons';
-import SearchByImageButton from '@components/ImageRecognition/SearchByImageButton';
-import SimilarObjectsButton from '@components/ImageRecognition/SimilarObjectsButton';
 import Pagination from '@components/common/Pagination';
 
 export default function AlbumScreen() {
@@ -228,28 +226,6 @@ export default function AlbumScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={displayedObjects.length === 0 ? styles.emptyList : styles.list}
         columnWrapperStyle={displayedObjects.length > 0 ? styles.row : undefined}
-      />
-      
-      <SearchByImageButton
-        expectedObjectId={2} //Este sería el id del goal, se usa para verificar si la respuesta de coincidencia es la misma para obtener el objeto, actualmente haarcodeado
-        similarityThreshold={0.75}
-        onSearchResult={(results) => {
-          console.log('Resultados:', results);
-        }}
-        onError={(error) => {
-          console.error('Error:', error);
-        }}
-      />
-
-      <SimilarObjectsButton
-        objectId={1} // Este el id del objeto a quien se quiere buscar sus similares, actualmente haarcodeado
-        topK={3}
-        onSimilarObjectsResult={(results) => {
-          console.log('Objetos similares:', results);
-        }}
-        onError={(error) => {
-          console.error('Error:', error);
-        }}
       />
     </SafeAreaView>
   );

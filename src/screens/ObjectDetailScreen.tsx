@@ -25,6 +25,8 @@ import { getReviewsByCulturalObject } from '@services/reviews/getReviewsByCultur
 import { createReviewCulturalObject } from '@services/reviews/createReviewCulturalObject';
 import { ReviewResponseDto } from '@interfaces/reviews/ReviewResponse';
 import { useAuthState } from '../hooks/useAuth';
+import SimilarObjectsButton from '@components/ImageRecognition/SimilarObjectsButton';
+import { COLORS } from '@constants/colors';
 
 type ObjectDetailRouteProp = RouteProp<{
   ObjectDetail: {
@@ -70,12 +72,10 @@ export default function ObjectDetailScreen() {
   const [rating, setRating] = useState(5);
   const [submittingComment, setSubmittingComment] = useState(false);
 
-  // Función de navegación inteligente
   const handleBackPress = () => {
     if (navigation.canGoBack()) {
       navigation.goBack();
     } else if (fromScreen) {
-      // Si quieres forzar regresar a una pantalla específica en el root navigator
       navigation.getParent()?.navigate(fromScreen as any);
     }
   };
@@ -401,6 +401,30 @@ export default function ObjectDetailScreen() {
                   </View>
                 </View>
               )}
+            </View>
+          </Card>
+          
+          {/* Similar Objects Button */}
+          <Card style={[styles.card, { backgroundColor: colors.cardBackground, marginTop: 16 }]}>
+            <View style={styles.cardContent}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                Descubrir Objetos Similares
+              </Text>
+              <Text style={[styles.sectionSubtitle, { color: colors.textSecondary }]}>
+                Encuentra objetos culturales similares a este
+              </Text>
+              <SimilarObjectsButton
+                objectId={albumItem.id}
+                objectName={objectDetail.name}
+                topK={3}
+                onSimilarObjectsResult={(results) => {
+                  console.log('Objetos similares:', results);
+                }}
+                onError={(error) => {
+                  console.error('Error:', error);
+                }}
+                style={[styles.similarObjectsButton, { backgroundColor: COLORS.button.primary }]}
+              />
             </View>
           </Card>
           
@@ -763,5 +787,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontStyle: 'italic',
     paddingVertical: 20,
+  },
+  similarObjectsButton: {
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    marginBottom: 12,
   },
 });

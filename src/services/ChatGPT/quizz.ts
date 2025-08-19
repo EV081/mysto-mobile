@@ -5,7 +5,7 @@ export async function generateMuseumQuiz(goalId: number) {
     const api = await Api.getInstance();
     const response = await api.post<void, { reply: string }>(
       undefined,
-      { url: `/museum-quiz/${goalId}` }
+      { url: `/gpt/museum-quiz/${goalId}` }
     );
     return response;
   } catch (error: any) {

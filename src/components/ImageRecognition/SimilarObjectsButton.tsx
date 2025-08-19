@@ -11,6 +11,7 @@ import { getSimilarObjectbyId, SimilarObject } from '@services/imageRecognition/
 
 interface SimilarObjectsButtonProps {
   objectId: number;
+  objectName: string;
   onSimilarObjectsResult?: (results: SimilarObject[]) => void;
   onError?: (error: string) => void;
   topK?: number;
@@ -21,6 +22,7 @@ interface SimilarObjectsButtonProps {
 
 export const SimilarObjectsButton: React.FC<SimilarObjectsButtonProps> = ({
   objectId,
+  objectName,
   onSimilarObjectsResult,
   onError,
   topK = 3,
@@ -33,7 +35,7 @@ export const SimilarObjectsButton: React.FC<SimilarObjectsButtonProps> = ({
   const searchSimilarObjects = async () => {
     try {
       setIsLoading(true);
-      console.log('Iniciando búsqueda de objetos similares para ID:', objectId);
+      console.log('Iniciando búsqueda de objetos similares para :', objectName);
       
       const response = await getSimilarObjectbyId(objectId, topK);
       
@@ -102,7 +104,7 @@ export const SimilarObjectsButton: React.FC<SimilarObjectsButtonProps> = ({
 
     Alert.alert(
       'Buscar objetos similares',
-      `¿Deseas buscar objetos similares al objeto con ID ${objectId}?`,
+      `¿Deseas buscar objetos similares para "${objectName}"?`,
       [
         {
           text: 'Cancelar',
