@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, Image, ActivityIndicator, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { getListAllObjects } from '@services/museum/getListAllObjects';
 import { CulturalObjectResponse } from '@interfaces/cuturalObject/CulturalObjectResponse';
@@ -181,15 +181,19 @@ export default function ObjetosListados({ onObjectPress }: ObjetosListadosProps)
         );
     };
 
+    const handleObjectPressFromRedSocial = useCallback((item: CulturalObjectResponse) => {
+    navigation.push('ObjectDetail', { 
+        albumItem: convertToAlbumItem(item),
+        culturalObject: item,
+        fromScreen: 'RedSocial'
+    });
+    }, [navigation, convertToAlbumItem]);
+
     const renderItem = ({ item }: { item: CulturalObjectResponse }) => (
         <View style={styles.publicationCard}>
             <TouchableOpacity
                 activeOpacity={0.8}
-                onPress={() => navigation.navigate('ObjectDetail', { 
-                    albumItem: convertToAlbumItem(item),
-                    culturalObject: item,
-                    fromScreen: 'RedSocial'
-                })}
+                onPress={() => handleObjectPressFromRedSocial(item)}
             >
                 {item.pictureUrls && item.pictureUrls.length > 0 ? (
                     <Image
