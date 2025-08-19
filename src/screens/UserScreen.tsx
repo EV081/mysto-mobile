@@ -133,24 +133,6 @@ export default function UserScreen() {
     }
   };
 
-  const handleLogout = () => {
-    Alert.alert(
-      'Cerrar Sesión',
-      '¿Estás seguro de que deseas cerrar sesión?',
-      [
-        {
-          text: 'Cancelar',
-          style: 'cancel',
-        },
-        {
-          text: 'Cerrar Sesión',
-          style: 'destructive',
-          onPress: logout,
-        },
-      ]
-    );
-  };
-
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchUserData();
@@ -192,7 +174,7 @@ export default function UserScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colorScheme === 'dark' ? '#1e293b' : '#f3f4f6' }]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -223,7 +205,6 @@ export default function UserScreen() {
 
         <UserActionsSection 
           onChangePassword={() => openEditModal('password')}
-          onLogout={handleLogout}
         />
       </ScrollView>
 
@@ -248,6 +229,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 32,
+    gap: 0,
   },
   centerContent: {
     flex: 1,

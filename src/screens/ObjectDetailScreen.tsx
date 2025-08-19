@@ -29,8 +29,8 @@ import { useAuthState } from '../hooks/useAuth';
 type ObjectDetailRouteProp = RouteProp<{
   ObjectDetail: {
     albumItem: AlbumResponseDto;
-    culturalObject?: CulturalObjectResponse; // Add optional culturalObject parameter
-    fromScreen?: 'Album' | 'RedSocial' | 'Museo'; // To know where we came from
+    culturalObject?: CulturalObjectResponse; 
+    fromScreen?: 'Album' | 'RedSocial' | 'Museo'; 
   };
 }, 'ObjectDetail'>;
 
@@ -60,23 +60,20 @@ export default function ObjectDetailScreen() {
   
   const { albumItem, culturalObject, fromScreen } = route.params;
   const [objectDetail, setObjectDetail] = useState<CulturalObjectResponse | null>(culturalObject || null);
-  const [loading, setLoading] = useState(!culturalObject); // Don't load if we already have the data
+  const [loading, setLoading] = useState(!culturalObject);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   
-  // Comment-related state
   const [reviews, setReviews] = useState<ReviewResponseDto[]>([]);
   const [loadingReviews, setLoadingReviews] = useState(false);
   const [commentInput, setCommentInput] = useState('');
   const [rating, setRating] = useState(5);
   const [submittingComment, setSubmittingComment] = useState(false);
 
-  // Función de navegación inteligente
   const handleBackPress = () => {
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-    } else if (fromScreen) {
-      // Si quieres forzar regresar a una pantalla específica en el root navigator
-      navigation.getParent()?.navigate(fromScreen as any);
+    if (fromScreen) {
+      navigation.navigate(fromScreen); 
+    } else {
+      navigation.navigate('Home'); 
     }
   };
 
@@ -94,7 +91,6 @@ export default function ObjectDetailScreen() {
   };
   
   const loadObjectDetail = useCallback(async () => {
-    // If we already have the cultural object data, don't fetch again
     if (culturalObject) {
       setObjectDetail(culturalObject);
       setLoading(false);
@@ -103,7 +99,7 @@ export default function ObjectDetailScreen() {
 
     try {
       setLoading(true);
-      setCurrentImageIndex(0); // Reset image index
+      setCurrentImageIndex(0);
       const response = await getCulturalObjectInfo(albumItem.id);
       setObjectDetail(response.data);
     } catch (error) {
@@ -114,7 +110,7 @@ export default function ObjectDetailScreen() {
         [
           {
             text: 'Volver',
-            onPress: handleBackPress, // ← Usar navegación inteligente
+            onPress: handleBackPress,
           },
         ]
       );
@@ -176,11 +172,9 @@ export default function ObjectDetailScreen() {
       
       await createReviewCulturalObject(albumItem.id, reviewData);
       
-      // Clear the input and reset rating
       setCommentInput('');
       setRating(5);
       
-      // Refresh reviews
       await fetchReviews();
       
       Alert.alert('Éxito', 'Comentario y calificación agregados correctamente');
@@ -685,7 +679,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginLeft: 6,
   },
-  // Comments section styles
   addCommentSection: {
     marginTop: 20,
     paddingTop: 16,

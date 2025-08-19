@@ -25,7 +25,6 @@ const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({
   updatingImage 
 }) => {
   const colorScheme = useColorScheme();
-  const colors = getThemeColors(colorScheme === 'dark');
   const isDark = colorScheme === 'dark';
 
   const changeProfileImage = async () => {
@@ -45,49 +44,37 @@ const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({
     }
   };
 
-  const getRoleDisplayName = (role: string) => {
-    switch (role) {
-      case 'COLLAB':
-        return 'Colaborador';
-      case 'CUSTOMER':
-        return 'Cliente';
-      default:
-        return role;
-    }
-  };
-
-  const getRoleBadgeColor = (role: string) => {
-    switch (role) {
-      case 'COLLAB':
-        return '#3b7df6ff';
-      case 'CUSTOMER':
-        return '#10b981';
-      default:
-        return '#6b7280';
-    }
-  };
-
   return (
-    <View style={[styles.header, { 
-      backgroundColor: isDark 
-        ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(147, 51, 234, 0.1) 100%)'
-        : 'linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(147, 51, 234, 0.05) 100%)'
-    }]}>
+    <View style={[
+      styles.header,
+      {
+        backgroundColor: isDark ? '#23223a' : '#fff',
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: '#000000ff',
+        shadowColor: '#7C3AED',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 8,
+        elevation: 3,
+        marginBottom: 20,
+        marginHorizontal: 12, 
+      }
+    ]}>
       <View style={styles.profileSection}>
         <View style={styles.avatarContainer}>
           {user.url_image ? (
-            <Image source={{ uri: user.url_image }} style={styles.avatarImage} />
+            <Image source={{ uri: user.url_image }} style={[styles.avatarImage, { borderWidth: 2, borderColor: '#000000ff' }]} />
           ) : (
-            <View style={[styles.avatar, { backgroundColor: COLORS.primary }]}>
+            <View style={[styles.avatar, { backgroundColor: isDark ? '#23223a' : '#F3F4F6', borderWidth: 2, borderColor: '#000000ff' }]}>
               <Text style={styles.avatarText}>
                 {user.name.charAt(0).toUpperCase()}
               </Text>
             </View>
           )}
           <TouchableOpacity
-            style={[styles.editImageButton, { backgroundColor: COLORS.primary }]}
+            style={[styles.editImageButton, { backgroundColor: '#7C3AED', borderColor: '#fff' }]}
             onPress={changeProfileImage}
-            activeOpacity={0.8}
             disabled={updatingImage}
           >
             {updatingImage ? (
@@ -99,29 +86,13 @@ const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({
         </View>
 
         <View style={styles.userInfo}>
-          <Text style={[styles.userName, { color: colors.text }]}>
+          <Text style={[styles.userName, { color: '#374151' }]}>
             {user.name}
           </Text>
-          <Text style={[styles.userEmail, { color: colors.textSecondary }]}>
+          <Text style={[styles.userEmail, { color: '#7C3AED' }]}>
             {user.email}
           </Text>
-          <View style={[styles.roleBadge, { backgroundColor: getRoleBadgeColor(user.role) }]}>
-            <Text style={styles.roleText}>
-              {getRoleDisplayName(user.role)}
-            </Text>
-          </View>
         </View>
-      </View>
-
-      <View style={[styles.userIdCard, { 
-        backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.8)'
-      }]}>
-        <Text style={[styles.idLabel, { color: colors.textSecondary }]}>
-          ID de usuario
-        </Text>
-        <Text style={[styles.idValue, { color: colors.text }]}>
-          #{user.id}
-        </Text>
       </View>
     </View>
   );
@@ -135,7 +106,6 @@ const styles = StyleSheet.create({
   profileSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
   },
   avatarContainer: {
     position: 'relative',
@@ -147,21 +117,23 @@ const styles = StyleSheet.create({
     borderRadius: 45,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
     shadowRadius: 8,
-    elevation: 8,
+    elevation: 3,
+    // borderColor y borderWidth se sobrescriben arriba
   },
   avatarImage: {
     width: 90,
     height: 90,
     borderRadius: 45,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowColor: '#7C3AED',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
     shadowRadius: 8,
-    elevation: 8,
+    elevation: 3,
+    // borderColor y borderWidth se sobrescriben arriba
   },
   editImageButton: {
     position: 'absolute',
@@ -172,64 +144,34 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 3,
+    borderWidth: 2,
     borderColor: 'white',
-    shadowColor: '#000',
+    shadowColor: '#7C3AED',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.12,
     shadowRadius: 4,
-    elevation: 5,
+    elevation: 2,
   },
   editImageIcon: {
     fontSize: 14,
+    color: 'white',
   },
   avatarText: {
     fontSize: 36,
     fontWeight: 'bold',
-    color: 'white',
+    color: '#7C3AED',
   },
   userInfo: {
     flex: 1,
   },
   userName: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: 'bold',
     marginBottom: 4,
   },
   userEmail: {
-    fontSize: 16,
+    fontSize: 15,
     marginBottom: 12,
-  },
-  roleBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  roleText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: 'white',
-  },
-  userIdCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  idLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  idValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
   },
 });
 

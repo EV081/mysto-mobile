@@ -1,9 +1,11 @@
+import React from 'react';
 import { createDrawerNavigator, DrawerContentScrollView, DrawerItemList } from '@react-navigation/drawer';
 import { View, Text, StyleSheet, TouchableOpacity, useColorScheme } from 'react-native';
 import { getThemeColors, COLORS } from '@constants/colors';
 import HomeScreen from '@screens/HomeScreen';
 import ShopScreen from '@screens/ShopScreen';
 import { useAuthContext } from '@contexts/AuthContext';
+import { useModal } from '@contexts/ModalContext';
 import AlbumScreen from '@screens/AlbumScreen';
 import ObjectDetailScreen from '@screens/ObjectDetailScreen';
 import MuseumScreen from '@screens/MuseumScreen';
@@ -11,14 +13,24 @@ import RedSocialScreen from '@screens/RedSocialScreen';
 import MapScreen from '@screens/MapScreen';
 import UserScreen from '@screens/UserScreen';
 import AventureScreen from '@screens/AventureScreen';
-const Drawer = createDrawerNavigator();
 
+const Drawer = createDrawerNavigator();
 
 function CustomDrawerContent(props: any) {
   const { logout } = useAuthContext();
+  const { confirmLogout } = useModal();
   const colorScheme = useColorScheme();
   const colors = getThemeColors(colorScheme === 'dark');
   const isDark = colorScheme === 'dark';
+
+  const handleLogoutPress = () => {
+    confirmLogout(() => {
+      props.navigation.closeDrawer();
+      setTimeout(() => {
+        logout();
+      }, 300);
+    });
+  };
   
   return (
     <DrawerContentScrollView 
@@ -43,20 +55,14 @@ function CustomDrawerContent(props: any) {
       </View>
       <View style={{ alignItems: 'center', marginTop: 24, marginBottom: 16 }}>
         <TouchableOpacity
-          onPress={logout}
-          style={{
-            borderColor: COLORS.button.danger,
-            borderWidth: 2,
-            borderRadius: 9999,
-            paddingVertical: 10,
-            paddingHorizontal: 32,
+          onPress={handleLogoutPress}
+          style={[styles.logoutButton, {
             backgroundColor: COLORS.button.danger,
-            minWidth: 180,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
+          }]}
+          activeOpacity={0.8}
         >
-          <Text style={{ color: COLORS.input.background, fontWeight: 'bold', fontSize: 16 }}>Cerrar Sesión</Text>
+          <Text style={styles.logoutButtonText}>Cerrar Sesión</Text>
+          <Text style={styles.logoutIcon}>🏃</Text>
         </TouchableOpacity>
       </View>
     </DrawerContentScrollView>
@@ -66,7 +72,6 @@ function CustomDrawerContent(props: any) {
 export default function DrawerNavigator() {
   const colorScheme = useColorScheme();
   const colors = getThemeColors(colorScheme === 'dark');
-  const isDark = colorScheme === 'dark';
   
   return (
     <Drawer.Navigator
@@ -125,5 +130,23 @@ const styles = StyleSheet.create({
   closeButtonIcon: {
     fontSize: 20,
     fontWeight: 'bold',
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 9999,
+    paddingVertical: 10,
+    paddingHorizontal: 32,
+    minWidth: 180,
+    gap: 8,
+  },
+  logoutIcon: {
+    fontSize: 18,
+  },
+  logoutButtonText: {
+    color: COLORS.input.background,
+    fontWeight: 'bold',
+    fontSize: 16,
   },
 });
