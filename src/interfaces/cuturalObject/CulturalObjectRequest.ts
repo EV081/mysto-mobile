@@ -6,5 +6,5 @@ export interface CulturalObjectRequest {
     coins: number;
     description: string;
     type: CulturalObjectType;
-    pictures?: string[]; // Asumimos que se envían URLs o IDs de imágenes
+    pictures?: string[];
 }
