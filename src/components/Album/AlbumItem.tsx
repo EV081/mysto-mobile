@@ -5,11 +5,8 @@ import { CulturalObjectType } from '@interfaces/cuturalObject/CulturalObjectType
 import { getThemeColors } from '@constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import {useCallback} from 'react';
 import type { ColorValue } from 'react-native';
-
-type NavigationProp = {
-  navigate: (screen: 'Album' | 'Home' | 'ObjectDetail', params?: any) => void;
-};
 
 interface AlbumItemProps {
   item: AlbumResponseDto;
@@ -19,21 +16,22 @@ interface AlbumItemProps {
 export default function AlbumItem({ item, isObtained }: AlbumItemProps) {
   const colorScheme = useColorScheme();
   const colors = getThemeColors(colorScheme === 'dark');
-  const navigation = useNavigation<NavigationProp>();
+  const navigation = useNavigation<any>();
   
-  const handlePress = () => {
-    console.log('Pressed item ID:', item.id, 'Name:', item.name, 'isObtained:', isObtained);
-    
-    if (isObtained) {
-      console.log('Navigating to ObjectDetail with item:', item);
-      navigation.navigate('ObjectDetail', { 
-        albumItem: item,
-        fromScreen: 'Album'
-      });
-    } else {
-      console.log('Item not obtained, not navigating');
-    }
-  };
+const handleObjectPressFromAlbum = useCallback((item: AlbumResponseDto) => {
+  if (!item.isObtained) {
+    console.log('Item not obtained, not navigating');
+    return;
+  }
+
+  console.log('Navigating to ObjectDetail with item:', item);
+  navigation.push('ObjectDetail', { 
+    albumItem: item,       
+    culturalObject: item,   
+    fromScreen: 'Album'
+  });
+}, [navigation]);
+
 
   const getCardConfig = (type: string) => {
     switch (type) {
@@ -122,7 +120,7 @@ export default function AlbumItem({ item, isObtained }: AlbumItemProps) {
   const rarityStars = isObtained ? getRarityStars(item) : '???';
 
   return (
-    <TouchableOpacity onPress={handlePress} activeOpacity={0.8} style={styles.container}>
+    <TouchableOpacity onPress={() => handleObjectPressFromAlbum(item)} activeOpacity={0.8} style={styles.container}>
       <View style={[
         styles.cardContainer,
         !isObtained && styles.lockedCard

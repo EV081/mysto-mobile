@@ -5,7 +5,7 @@ export async function getMuseumHistory(goalId: number) {
     const api = await Api.getInstance();
     const response = await api.post<void, { reply: string }>(
       undefined,
-      { url: `/museum-history/${goalId}` }
+      { url: `/gpt/museum-history/${goalId}` }
     );
     return response;
   } catch (error: any) {
