@@ -10,7 +10,6 @@ import AlbumScreen from '@screens/AlbumScreen';
 import ObjectDetailScreen from '@screens/ObjectDetailScreen';
 import MuseumScreen from '@screens/MuseumScreen';
 import RedSocialScreen from '@screens/RedSocialScreen';
-import MapScreen from '@screens/MapScreen';
 import UserScreen from '@screens/UserScreen';
 import AventureScreen from '@screens/AventureScreen';
 import AvatarScreen from "@screens/AvatarScreen";
@@ -103,7 +102,6 @@ export default function DrawerNavigator() {
       <Drawer.Screen name= "Aventura" component={AventureScreen} options = {{title: 'Aventura'}} />
       <Drawer.Screen name="Museum" component={MuseumScreen} options={{ title: 'Museos' }} />
       <Drawer.Screen name= "RedSocial" component={RedSocialScreen} options= {{title: 'Red Social'}} />
-      <Drawer.Screen name= "Mapa" component={MapScreen} options= {{title: 'Mapa'}} />
       <Drawer.Screen name="Shop" component={ShopScreen} options={{ title: 'Tienda' }} />
       <Drawer.Screen name="Avatar" component={AvatarScreen} options={{ title: "Avatar" }} />
     </Drawer.Navigator>
