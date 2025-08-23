@@ -38,22 +38,20 @@ export default function MuseumScreen() {
     ['name', 'description']
   );
 
-  // Función para cargar museos
   const loadMuseums = useCallback(async (page: number = 0) => {
     setLoading(true);
     try {
       const data: PagedResponse<MuseumResponse> = await getPagedMuseums(page, pageSize);
       setMuseums(data.contents);
-      setCurrentPage(data.paginaActual);
-      setTotalPages(data.totalPaginas);
-      setTotalElements(data.totalElementos);
+      setCurrentPage(data.page);
+      setTotalPages(data.totalPages);
+      setTotalElements(data.totalElements);
     } catch (e) {
       showError('No se pudieron cargar los museos');
     }
     setLoading(false);
   }, [showError]);
 
-  // Efecto inicial
   useEffect(() => {
     if (isInitialLoad.current) {
       isInitialLoad.current = false;
@@ -61,7 +59,6 @@ export default function MuseumScreen() {
     }
   }, [loadMuseums]);
 
-  // Función para manejar envío del formulario
   const handleSubmitMuseum = async (data: any) => {
     setFormLoading(true);
     try {
@@ -90,7 +87,6 @@ export default function MuseumScreen() {
       setShowForm(false);
       setEditMode(false);
       setEditingMuseum(null);
-      // Recargar datos después de crear/actualizar
       await loadMuseums(currentPage);
     } catch (e) {
       const message = editMode ? 'No se pudo actualizar el museo' : 'No se pudo crear el museo';
@@ -100,21 +96,18 @@ export default function MuseumScreen() {
     }
   };
 
-  // Función para editar museo
   const handleEditMuseum = useCallback((museum: MuseumResponse) => {
     setEditingMuseum(museum);
     setEditMode(true);
     setShowForm(true);
   }, []);
 
-  // Función para cancelar formulario
   const handleCancelForm = useCallback(() => {
     setShowForm(false);
     setEditMode(false);
     setEditingMuseum(null);
   }, []);
 
-  // Función para navegar al museo
   const handleMuseumPress = useCallback((museum: MuseumResponse) => {
     (navigation as any).navigate('MuseumforOneScreen', { 
       museumId: museum.id,
@@ -122,12 +115,10 @@ export default function MuseumScreen() {
     });
   }, [navigation, loadMuseums, currentPage]);
 
-  // Función para mostrar formulario de creación
   const handleShowCreateForm = useCallback(() => {
     setShowForm(true);
   }, []);
 
-  // Función para cambiar de página
   const handlePageChange = useCallback((page: number) => {
     setCurrentPage(page);
     loadMuseums(page);
@@ -143,7 +134,6 @@ export default function MuseumScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Botón de creación */}
       {role === 'COLLAB' && (
         <Button
           mode="contained"
@@ -156,7 +146,6 @@ export default function MuseumScreen() {
         </Button>
       )}
 
-      {/* Barra de búsqueda */}
       <SearchBar
         placeholder="Buscar museos por nombre..."
         onSearch={handleSearch}
@@ -164,7 +153,6 @@ export default function MuseumScreen() {
         initialValue={searchQuery}
       />
 
-      {/* Lista de museos */}
       <FlatList
         data={filteredMuseums}
         keyExtractor={item => item.id.toString()}
@@ -180,7 +168,6 @@ export default function MuseumScreen() {
         showsVerticalScrollIndicator={false}
       />
 
-      {/* Paginación */}
       {!searchQuery && (
         <Pagination
           currentPage={currentPage}
@@ -191,7 +178,6 @@ export default function MuseumScreen() {
         />
       )}
 
-      {/* Modal del formulario */}
       <Modal visible={showForm} animationType="slide" transparent={true}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -215,7 +201,6 @@ export default function MuseumScreen() {
         </View>
       </Modal>
 
-      {/* Toast */}
       <Toast
         visible={toast.visible}
         message={toast.message}

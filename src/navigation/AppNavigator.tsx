@@ -63,7 +63,7 @@ export default function AppNavigator() {
             <Stack.Screen name="MuseumforOneScreen" component={MuseumforOneScreen} options={{ title: 'Detalle del museo' }}/>
             <Stack.Screen name="RedSocial" component={RedSocialScreen} options={{ title: 'Red Social' }} />
             <Stack.Screen name="Aventura" component={AventureScreen}/>
-                  <Stack.Screen name="ObjectDetail" component={ObjectDetailScreen} />
+            <Stack.Screen name="ObjectDetail" component={ObjectDetailScreen} />
           </>
         )}
       </Stack.Navigator>
