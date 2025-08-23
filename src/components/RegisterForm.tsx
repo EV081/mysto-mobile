@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { Button } from 'react-native-paper';
+import Toast from '@components/common/Toast';
+import { useToast } from '@hooks/useToast';
 
 interface RegisterFormProps {
   onSubmit: (name: string, email: string, password: string) => Promise<void>;
@@ -19,65 +21,106 @@ export default function RegisterForm({
   buttonColor = '#7300BF',
   buttonTextColor = '#ffffff'
 }: RegisterFormProps) {
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName,  setLastName]  = useState('');
+  const [email, setEmail]         = useState('');
+  const [password, setPassword]   = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const [showPassword, setShowPassword]               = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const { toast, showError, showSuccess, hideToast } = useToast();
+
+  const onlyLettersAndSpaces = (text: string) =>
+    text.replace(/[^A-Za-zÁÉÍÓÚáéíóúÑñ\s]/g, '');
+
+  const normalizeInline = (text: string) =>
+    text.replace(/^\s+/, '').replace(/\s+/g, ' ');
+
+  const normalizeFinal = (text: string) =>
+    text.replace(/\s+/g, ' ').trim();
+
+  const isValidName = (normalized: string) => {
+    if (normalized.length < 3) return false;
+    return /^[A-Za-zÁÉÍÓÚáéíóúÑñ]+(?:\s[A-Za-zÁÉÍÓÚáéíóúÑñ]+)*$/.test(normalized);
+  };
 
   const handleSubmit = async () => {
-    if (!name.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
-      Alert.alert('Error', 'Por favor completa todos los campos');
+    const fn = normalizeFinal(firstName);
+    const ln = normalizeFinal(lastName);
+    const em = email.trim().toLowerCase();
+    const pw = password;
+    const cpw = confirmPassword;
+
+    if (!fn || !ln || !em || !pw || !cpw) {
+      showError('Por favor completa todos los campos.');
+      return;
+    }
+    if (!isValidName(fn)) {
+      showError('El nombre debe tener mínimo 3 letras, sin espacios al inicio/fin y solo letras con espacios internos.');
+      return;
+    }
+    if (!isValidName(ln)) {
+      showError('El apellido debe tener mínimo 3 letras, sin espacios al inicio/fin y solo letras con espacios internos.');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(em)) {
+      showError('El email no es válido.');
+      return;
+    }
+    if (pw.trim().length < 6) {
+      showError('La contraseña debe tener mínimo 6 caracteres y no puede ser solo espacios.');
+      return;
+    }
+    if (pw !== cpw) {
+      showError('Las contraseñas no coinciden.');
       return;
     }
 
-    if (name.length < 2) {
-      Alert.alert('Error', 'El nombre debe tener al menos 2 caracteres');
-      return;
-    }
+    const fullName = `${fn} ${ln}`;
 
-    if (!/\S+@\S+\.\S+/.test(email)) {
-      Alert.alert('Error', 'El email no es válido');
-      return;
-    }
-
-    if (password.length < 4) {
-      Alert.alert('Error', 'La contraseña debe tener al menos 4 caracteres');
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      Alert.alert('Error', 'Las contraseñas no coinciden');
-      return;
-    }
-
-    try {
-      await onSubmit(name.trim(), email.trim(), password);
-    } catch (error) {
-      console.error('Error en registro:', error);
-    }
+    await onSubmit(fullName, em, pw);
   };
+
 
   return (
     <View style={styles.container}>
       <View style={[styles.formContainer, { backgroundColor: inputBg }]}>
         <Text style={[styles.title, { color: inputText }]}>Crear Cuenta</Text>
-        
+
+        {/* Nombre */}
         <View style={styles.inputContainer}>
           <Text style={[styles.label, { color: inputText }]}>Nombre</Text>
           <TextInput
             style={[styles.input, { backgroundColor: inputBg, color: inputText, borderColor: inputText + '20' }]}
-            value={name}
-            onChangeText={setName}
+            value={firstName}
+            onChangeText={(t) => setFirstName(normalizeInline(onlyLettersAndSpaces(t)))}
             placeholder="Tu nombre"
             placeholderTextColor={inputText + '60'}
             autoCapitalize="words"
             autoCorrect={false}
             editable={!isLoading}
+            maxLength={40}
           />
         </View>
 
+        {/* Apellido */}
+        <View style={styles.inputContainer}>
+          <Text style={[styles.label, { color: inputText }]}>Apellido</Text>
+          <TextInput
+            style={[styles.input, { backgroundColor: inputBg, color: inputText, borderColor: inputText + '20' }]}
+            value={lastName}
+            onChangeText={(t) => setLastName(normalizeInline(onlyLettersAndSpaces(t)))}
+            placeholder="Tu apellido"
+            placeholderTextColor={inputText + '60'}
+            autoCapitalize="words"
+            autoCorrect={false}
+            editable={!isLoading}
+            maxLength={40}
+          />
+        </View>
+
+        {/* Email */}
         <View style={styles.inputContainer}>
           <Text style={[styles.label, { color: inputText }]}>Email</Text>
           <TextInput
@@ -93,6 +136,7 @@ export default function RegisterForm({
           />
         </View>
 
+        {/* Contraseña */}
         <View style={styles.inputContainer}>
           <Text style={[styles.label, { color: inputText }]}>Contraseña</Text>
           <View style={[styles.passwordContainer, { backgroundColor: inputBg, borderColor: inputText + '20' }]}>
@@ -119,6 +163,7 @@ export default function RegisterForm({
           </View>
         </View>
 
+        {/* Confirmación */}
         <View style={styles.inputContainer}>
           <Text style={[styles.label, { color: inputText }]}>Confirmar Contraseña</Text>
           <View style={[styles.passwordContainer, { backgroundColor: inputBg, borderColor: inputText + '20' }]}>
@@ -156,34 +201,29 @@ export default function RegisterForm({
           {isLoading ? 'Creando cuenta...' : 'Crear Cuenta'}
         </Button>
       </View>
+
+      {/* Toast para el form */}
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onHide={hideToast}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    width: '100%',
-  },
+  container: { width: '100%' },
   formContainer: {
     borderRadius: 12,
     padding: 24,
     borderWidth: 1,
     borderColor: '#e5e7eb',
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 24,
-    textAlign: 'center',
-  },
-  inputContainer: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
+  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 24, textAlign: 'center' },
+  inputContainer: { marginBottom: 20 },
+  label: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
   input: {
     borderWidth: 1,
     borderRadius: 8,
@@ -197,25 +237,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: 8,
   },
-  passwordInput: {
-    flex: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    fontSize: 16,
-  },
-  eyeButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  eyeIcon: {
-    fontSize: 18,
-  },
-  submitButton: {
-    borderRadius: 8,
-    paddingVertical: 4,
-  },
-  submitButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-}); 
+  passwordInput: { flex: 1, paddingHorizontal: 12, paddingVertical: 12, fontSize: 16 },
+  eyeButton: { paddingHorizontal: 12, paddingVertical: 8 },
+  eyeIcon: { fontSize: 18 },
+  submitButton: { borderRadius: 8, paddingVertical: 4 },
+  submitButtonText: { fontSize: 16, fontWeight: '600' },
+});
