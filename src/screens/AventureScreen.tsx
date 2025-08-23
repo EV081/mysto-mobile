@@ -22,6 +22,22 @@ import AlbumItem from '@components/Album/AlbumItem';
 import SearchByImageButton from '@components/ImageRecognition/SearchByImageButton';
 import { CulturalObjectResponse } from '@interfaces/cuturalObject/CulturalObjectResponse';
 import { AlbumResponseDto } from '@interfaces/album/AlbumResponse';
+import { useRoute } from '@react-navigation/native';
+
+// Interfaz para los parámetros de navegación
+interface AdventureRouteParams {
+  museumId: number;
+  museumLocation: {
+    latitude: number;
+    longitude: number;
+    name: string;
+  };
+  userLocation: {
+    latitude: number;
+    longitude: number;
+  } | null;
+  hasUserLocation: boolean;
+}
 
 interface AdventureStep {
   paragraph: string;
@@ -44,6 +60,9 @@ interface QuizResponse {
 }
 
 export default function AdventureScreen() {
+  const route = useRoute<any>();
+  const params = route.params as AdventureRouteParams;
+  
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const colors = getThemeColors(isDark);
@@ -62,10 +81,24 @@ export default function AdventureScreen() {
   const startAdventure = async () => {
     try {
       setIsLoading(true);
-      // Hardcode museumId = 1 
-      const museumId = 1;
-      const latitude = -12.13693; 
-      const longitude = -77.02326;
+      
+      // Usar los parámetros recibidos de la navegación
+      const museumId = params?.museumId || 1;
+      let latitude = -12.13693; // Valor por defecto
+      let longitude = -77.02326; // Valor por defecto
+      
+      // Si hay ubicación del usuario, usarla; si no, usar la del museo
+      if (params?.hasUserLocation && params?.userLocation) {
+        latitude = params.userLocation.latitude;
+        longitude = params.userLocation.longitude;
+        console.log('Iniciando aventura con ubicación del usuario:', { latitude, longitude });
+      } else if (params?.museumLocation) {
+        latitude = params.museumLocation.latitude;
+        longitude = params.museumLocation.longitude;
+        console.log('Iniciando aventura con ubicación del museo:', { latitude, longitude });
+      } else {
+        console.log('Iniciando aventura con ubicación por defecto:', { latitude, longitude });
+      }
   
       const startedGoalId = await startGoals(museumId, latitude, longitude);
       setGoalId(startedGoalId);
@@ -78,6 +111,49 @@ export default function AdventureScreen() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Función para mostrar información de ubicación
+  const showLocationInfo = () => {
+    if (!params) {
+      Alert.alert('Información', 'No hay información de ubicación disponible.');
+      return;
+    }
+
+    let message = `Museo: ${params.museumLocation?.name || 'No especificado'}\n`;
+    message += `Ubicación del museo: ${params.museumLocation?.latitude?.toFixed(6)}, ${params.museumLocation?.longitude?.toFixed(6)}\n\n`;
+    
+    if (params.hasUserLocation && params.userLocation) {
+      message += `Tu ubicación: ${params.userLocation.latitude.toFixed(6)}, ${params.userLocation.longitude.toFixed(6)}\n`;
+      
+      // Calcular distancia aproximada si ambas ubicaciones están disponibles
+      if (params.museumLocation) {
+        const distance = calculateDistance(
+          params.userLocation.latitude,
+          params.userLocation.longitude,
+          params.museumLocation.latitude,
+          params.museumLocation.longitude
+        );
+        message += `Distancia al museo: ${distance.toFixed(1)} km`;
+      }
+    } else {
+      message += 'Tu ubicación: No disponible (permisos denegados)';
+    }
+    
+    Alert.alert('Información de Ubicación', message, [{ text: 'Entendido' }]);
+  };
+
+  // Función para calcular distancia entre dos puntos (fórmula de Haversine)
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371; // Radio de la Tierra en km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
   };
 
   const getAdventureHistory = async (goalId: number) => {
@@ -452,6 +528,19 @@ useEffect(() => {
               >
                 <Text style={styles.startButtonText}>Comenzar Aventura</Text>
               </TouchableOpacity>
+              
+              {/* Botón para mostrar información de ubicación */}
+              {params && (
+                <TouchableOpacity
+                  style={[styles.infoButton, { borderColor: colors.border }]}
+                  onPress={showLocationInfo}
+                >
+                  <Ionicons name="information-circle-outline" size={20} color={colors.textSecondary} />
+                  <Text style={[styles.infoButtonText, { color: colors.textSecondary }]}>
+                    Ver información de ubicación
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           </Card>
         ) : showQuiz ? (
@@ -707,5 +796,20 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
+  },
+  infoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 16,
+  },
+  infoButtonText: {
+    marginLeft: 8,
+    fontSize: 16,
+    fontWeight: '500',
   },
 }); 
