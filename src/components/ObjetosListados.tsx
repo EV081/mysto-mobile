@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, Image, ActivityIndicator, TouchableOpacity, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Image, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
 import { getListAllObjects } from '@services/museum/getListAllObjects';
+import { getCulturalObjectInfo } from '@services/culturalObject/getCulturalObjectInfo';
 import { CulturalObjectResponse } from '@interfaces/cuturalObject/CulturalObjectResponse';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { useAuthState } from '../hooks/useAuth';
 import { COLORS } from '@constants/colors';
-import { Button } from 'react-native-paper';
 import { createReviewCulturalObject } from '@services/reviews/createReviewCulturalObject';
 import { getReviewsByCulturalObject } from '@services/reviews/getReviewsByCulturalObject';
 import { ReviewResponseDto } from '@interfaces/reviews/ReviewResponse';
-import { Ionicons } from '@expo/vector-icons';
+import CommentsFromObjects from './CommentsFromObjects';
+import StarReviews from './StarReviews';
 
 interface ObjetosListadosProps {
     onObjectPress?: (objectId: string) => void;
@@ -36,7 +37,7 @@ export default function ObjetosListados({ onObjectPress }: ObjetosListadosProps)
     const fetchData = async () => {
         try {
             setLoading(true);
-            const data = await getListAllObjects(0, 10, objectId);
+            const data = await getListAllObjects(0, 10);
             setObjetos(data.contents || []);
             setError(null);
 
@@ -58,6 +59,7 @@ export default function ObjetosListados({ onObjectPress }: ObjetosListadosProps)
         try {
             setLoadingReviews(prev => ({ ...prev, [culturalObjectId]: true }));
             const reviewsData = await getReviewsByCulturalObject(culturalObjectId, 0, 10);
+            console.log(`Reviews for object ${culturalObjectId}:`, reviewsData);
             setReviews(prev => ({ ...prev, [culturalObjectId]: reviewsData.contents || [] }));
         } catch (error) {
             console.error(`Error fetching reviews for object ${culturalObjectId}:`, error);
@@ -132,7 +134,11 @@ export default function ObjetosListados({ onObjectPress }: ObjetosListadosProps)
             setCommentInputs(prev => ({ ...prev, [culturalObjectId]: '' }));
             setRatings(prev => ({ ...prev, [culturalObjectId]: 5 }));
             
+            // Refresh reviews
             await fetchReviewsForObject(culturalObjectId);
+            
+            // Refresh the cultural object to get updated rating
+            await refreshObjectData(culturalObjectId);
             
             Alert.alert('Éxito', 'Comentario y calificación agregados correctamente');
         } catch (error: any) {
@@ -140,6 +146,22 @@ export default function ObjetosListados({ onObjectPress }: ObjetosListadosProps)
             Alert.alert('Error', error.message || 'No se pudo agregar el comentario');
         } finally {
             setSubmittingComments(prev => ({ ...prev, [culturalObjectId]: false }));
+        }
+    };
+
+    const refreshObjectData = async (culturalObjectId: number) => {
+        try {
+            const response = await getCulturalObjectInfo(culturalObjectId);
+            const updatedObject = response.data;
+            setObjetos(prev => 
+                prev.map(obj => 
+                    obj.id === culturalObjectId ? updatedObject : obj
+                )
+            );
+        } catch (error) {
+            console.error('Error refreshing object data:', error);
+            // Fallback: just refresh all objects
+            await fetchData();
         }
     };
 
@@ -151,36 +173,6 @@ export default function ObjetosListados({ onObjectPress }: ObjetosListadosProps)
         setRatings(prev => ({ ...prev, [culturalObjectId]: rating }));
     };
 
-    const renderStars = (culturalObjectId: number) => {
-        const currentRating = ratings[culturalObjectId] || 5;
-        const stars = [];
-        
-        for (let i = 1; i <= 5; i++) {
-            stars.push(
-                <TouchableOpacity
-                    key={i}
-                    onPress={() => updateRating(culturalObjectId, i)}
-                    style={{ marginHorizontal: 2 }}
-                >
-                    <Ionicons
-                        name={i <= currentRating ? 'star' : 'star-outline'}
-                        size={20}
-                        color={i <= currentRating ? '#fbbf24' : '#d1d5db'}
-                    />
-                </TouchableOpacity>
-            );
-        }
-        
-        return (
-            <View style={styles.starsContainer}>
-                <Text style={styles.ratingLabel}>Calificación:</Text>
-                <View style={styles.starsRow}>
-                    {stars}
-                </View>
-            </View>
-        );
-    };
-
     const handleObjectPressFromRedSocial = useCallback((item: CulturalObjectResponse) => {
     navigation.push('ObjectDetail', { 
         albumItem: convertToAlbumItem(item),
@@ -188,6 +180,14 @@ export default function ObjetosListados({ onObjectPress }: ObjetosListadosProps)
         fromScreen: 'RedSocial'
     });
     }, [navigation, convertToAlbumItem]);
+
+    const handleMuseoPressFromRedSocial = useCallback((item: CulturalObjectResponse) => {
+        console.log('Navigating to museum with ID:', item.museumId);
+        navigation.push('MuseumforOneScreen', {
+            museumId: item.museumId,
+            fromScreen: 'RedSocial'
+        });
+    }, [navigation]);
 
     const renderItem = ({ item }: { item: CulturalObjectResponse }) => (
         <View style={styles.publicationCard}>
@@ -217,18 +217,20 @@ export default function ObjetosListados({ onObjectPress }: ObjetosListadosProps)
                     </Text>
                 )}
                 <View style={{ marginTop: 10 }}>
-                    <Text style={{ fontSize: 14, color: '#64748b' }}>
-                        <Text style={{ fontWeight: 'bold' }}>Puntos:</Text> {item.points}   <Text style={{ fontWeight: 'bold' }}>Monedas:</Text> {item.coins}
-                    </Text>
                     <Text style={{ fontSize: 14, color: '#64748b', marginTop: 2 }}>
-                        <Text style={{ fontWeight: 'bold' }}>Calificación:</Text> {item.qualification} / 5
+                        <Text style={{ fontWeight: 'bold' }}>Calificación:</Text> {item.qualification?.toFixed(2)} / 5
                     </Text>
                     <Text style={{ fontSize: 14, color: '#64748b', marginTop: 2 }}>
                         <Text style={{ fontWeight: 'bold' }}>Tipo:</Text> {item.type}
                     </Text>
-                    <Text style={{ fontSize: 14, color: '#64748b', marginTop: 2 }}>
-                        <Text style={{ fontWeight: 'bold' }}>Museo:</Text> {item.museumName}
-                    </Text>
+                    <TouchableOpacity 
+                        onPress={() => handleMuseoPressFromRedSocial(item)}
+                        style={{ paddingVertical: 4 }}
+                    >
+                        <Text style={{ fontSize: 14, color: '#64748b', marginTop: 2 }}>
+                            <Text style={{ fontWeight: 'bold' }}>Museo:</Text> {item.museumName}
+                        </Text>
+                    </TouchableOpacity>
                 </View>
                 <View style={{
                     backgroundColor: '#f1f5f9',
@@ -236,74 +238,26 @@ export default function ObjetosListados({ onObjectPress }: ObjetosListadosProps)
                     padding: 10,
                     marginTop: 14,
                 }}>
-                    <Text style={{ fontWeight: 'bold', color: COLORS.primary, marginBottom: 4 }}>Comentarios:</Text>
-                    {loadingReviews[item.id] ? (
-                        <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 8 }}>
-                            <ActivityIndicator size="small" color={COLORS.primary} />
-                            <Text style={{ fontSize: 13, color: '#64748b', marginLeft: 8 }}>Cargando comentarios...</Text>
-                        </View>
-                    ) : reviews[item.id] && reviews[item.id].length > 0 ? (
-                        reviews[item.id].slice(0, 3).map((review, idx) => (
-                            <View key={review.id} style={{ marginBottom: 4 }}>
-                                <Text style={{ fontSize: 13, color: '#334155', marginBottom: 1 }} numberOfLines={2} ellipsizeMode="tail">
-                                    • {review.content}
-                                </Text>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 12 }}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 8 }}>
-                                        {[...Array(5)].map((_, starIdx) => (
-                                            <Ionicons
-                                                key={starIdx}
-                                                name={starIdx < review.rating ? 'star' : 'star-outline'}
-                                                size={12}
-                                                color={starIdx < review.rating ? '#fbbf24' : '#d1d5db'}
-                                            />
-                                        ))}
-                                    </View>
-                                    <Text style={{ fontSize: 11, color: '#9ca3af' }}>
-                                        {new Date(review.createdAt).toLocaleDateString()}
-                                    </Text>
-                                </View>
-                            </View>
-                        ))
-                    ) : (
-                        <Text style={{ fontSize: 13, color: '#64748b' }}>Sin comentarios.</Text>
-                    )}
-                    {reviews[item.id] && reviews[item.id].length > 3 && (
-                        <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                            ...y {reviews[item.id].length - 3} comentarios más
-                        </Text>
-                    )}
+                    <Text style={{ fontWeight: 'bold', color: '#a37c10ff', marginBottom: 4 }}>Comentarios:</Text>
+                    <CommentsFromObjects 
+                        reviews={reviews[item.id] || []}
+                        loading={loadingReviews[item.id] || false}
+                        objectId={item.id}
+                    />
                 </View>
                 
                 {/* Comment input section */}
                 {session && (
                     <View style={styles.commentInputContainer}>
-                        <View style={{ flex: 1 }}>
-                            {renderStars(item.id)}
-                            <TextInput
-                                style={styles.commentInput}
-                                placeholder="Agrega un comentario..."
-                                placeholderTextColor="#9ca3af"
-                                value={commentInputs[item.id] || ''}
-                                onChangeText={(text) => updateCommentInput(item.id, text)}
-                                multiline
-                                numberOfLines={2}
-                            />
-                        </View>
-                        <TouchableOpacity
-                            style={[
-                                styles.commentButton,
-                                submittingComments[item.id] && styles.commentButtonDisabled
-                            ]}
-                            onPress={() => handleCommentSubmit(item.id)}
-                            disabled={submittingComments[item.id] || !commentInputs[item.id]?.trim()}
-                        >
-                            {submittingComments[item.id] ? (
-                                <ActivityIndicator size="small" color="#fff" />
-                            ) : (
-                                <Ionicons name="send" size={16} color="#fff" />
-                            )}
-                        </TouchableOpacity>
+                        <StarReviews
+                            objectId={item.id}
+                            commentInput={commentInputs[item.id] || ''}
+                            rating={ratings[item.id] || 5}
+                            submitting={submittingComments[item.id] || false}
+                            onCommentChange={(text) => updateCommentInput(item.id, text)}
+                            onRatingChange={(rating) => updateRating(item.id, rating)}
+                            onCommentSubmit={() => handleCommentSubmit(item.id)}
+                        />
                     </View>
                 )}
             </View>
@@ -365,7 +319,7 @@ const styles = StyleSheet.create({
         fontSize: 22,
         fontWeight: 'bold',
         marginBottom: 16,
-        color: COLORS.primary,
+        color: '#1a6dc1ff',
     },
     listContainer: {
         paddingBottom: 16,
@@ -393,7 +347,7 @@ const styles = StyleSheet.create({
         fontSize: 17,
         fontWeight: 'bold',
         marginBottom: 6,
-        color: COLORS.primary,
+        color: '#a37c10ff',
     },
     publicationDescription: {
         fontSize: 15,
@@ -476,43 +430,5 @@ const styles = StyleSheet.create({
         alignItems: 'flex-end',
         marginTop: 12,
         paddingHorizontal: 2,
-    },
-    commentInput: {
-        borderWidth: 1,
-        borderColor: '#d1d5db',
-        borderRadius: 8,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        marginRight: 8,
-        backgroundColor: 'white',
-        fontSize: 14,
-        maxHeight: 80,
-        textAlignVertical: 'top',
-        marginTop: 4,
-    },
-    commentButton: {
-        backgroundColor: COLORS.primary,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        borderRadius: 8,
-        justifyContent: 'center',
-        alignItems: 'center',
-        minWidth: 44,
-    },
-    commentButtonDisabled: {
-        backgroundColor: '#94a3b8',
-    },
-    starsContainer: {
-        marginBottom: 8,
-    },
-    ratingLabel: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#374151',
-        marginBottom: 4,
-    },
-    starsRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
     },
 });
