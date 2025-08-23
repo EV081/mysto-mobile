@@ -161,3 +161,11 @@ Recursos estáticos (imágenes, iconos, etc.).
 - ✅ Gestos y animaciones
 - ✅ Iconos vectoriales
 - ✅ Áreas seguras para diferentes dispositivos
+
+
+### Configuracion de Maps
+expo-location → Manejo de permisos y obtención de la ubicación en tiempo real del dispositivo.
+
+react-native-maps → Renderizado del mapa interactivo, uso de marcadores y soporte para tiles personalizados.
+
+Carto basemap tiles → Servicio externo de mapas base para mostrar el entorno geográfico.

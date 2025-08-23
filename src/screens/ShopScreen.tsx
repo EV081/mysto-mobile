@@ -1,5 +1,5 @@
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef} from "react";
 import { ActivityIndicator, FlatList, StyleSheet, Text, View, TouchableOpacity, Image, Alert } from "react-native";
 import { ArticleResponse } from "@interfaces/article/ArticleResponse";
 import { getAllArticles } from "@services/articles/articles";
@@ -24,53 +24,49 @@ export default function ShopScreen() {
     const [currentPage, setCurrentPage] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
     const [totalElements, setTotalElements] = useState(0);
-    const pageSize = 6;
-
+    const pageSize = 4;
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const [showCosmetics, setShowCosmetics] = useState(false);
     const [lockedCosmetics, setLockedCosmetics] = useState<Cosmetic[]>([]);
     const [loadingCosmetics, setLoadingCosmetics] = useState(false);
-
+    const isInitialLoad = useRef(true);
     const [userCoins, setUserCoins] = useState<number>(0);
     const [loadingCoins, setLoadingCoins] = useState(false);
 
-    const handlePageChange = useCallback((page: number) => {
-        setCurrentPage(page);
-        const loadPageObjects = async () => {
-            try {
-                const data = await getAllArticles(page, pageSize);
-                setArticleItems(data.contents);
-                setCurrentPage(data.paginaActual);
-                setTotalPages(data.totalPaginas);
-                setTotalElements(data.totalElementos);
-            } catch (e) {
-                showError("No se pudieron cargar los objetos culturales");
-            }
-        };
-        loadPageObjects();
-    }, [showError]);
+    const loadArticles = useCallback(async (page: number = 0) => {
+    try {
+        setIsLoading(true); 
+        const data = await getAllArticles(page, pageSize);
 
-    const fetchArticles = useCallback(async () => {
-        try {
-            setIsLoading(true);
-            const data: PagedResponse<ArticleResponse> = await getAllArticles(currentPage, pageSize);
-            setArticleItems(data.contents);
-            setCurrentPage(data.paginaActual);
-            setTotalPages(data.totalPaginas);
-            setTotalElements(data.totalElementos);
-        } catch (e) {
-            showError('No se pudieron cargar los articulos');
-        } finally {
-            setIsLoading(false);
-        }
-    }, [currentPage, pageSize, showError]);
+        setArticleItems(data.contents);
+        setCurrentPage(data.page);
+        setTotalPages(data.totalPages);
+        setTotalElements(data.totalElements);
+    } catch (e: any) {
+        showError(e?.response?.data?.message || "No se pudieron cargar los objetos culturales");
+    } finally {
+        setIsLoading(false); 
+        setIsRefreshing(false);
+    }
+    }, [pageSize, showError]);
+
+    const handlePageChange = useCallback((page: number) => {
+    setCurrentPage(page);
+    loadArticles(page);
+    }, [loadArticles]);
+
+    const handleRefresh = useCallback(() => {
+    setIsRefreshing(true);
+    loadArticles(currentPage);
+    }, [loadArticles, currentPage]);
 
     useEffect(() => {
-        if (!showCosmetics) {
-            fetchArticles();
-        }
-    }, [fetchArticles, showCosmetics]);
+    if (isInitialLoad.current) {
+        isInitialLoad.current = false;
+        loadArticles(0);
+    }
+    }, [loadArticles]);
 
-    // Fetch locked cosmetics when switching tab
     const fetchLockedCosmetics = useCallback(async () => {
         try {
             setLoadingCosmetics(true);
@@ -200,8 +196,8 @@ export default function ShopScreen() {
                         renderItem={renderArticleItem}
                         contentContainerStyle={styles.listContent}
                         ListEmptyComponent={!isLoading ? <Text style={styles.empty}>No hay artículos disponibles.</Text> : null}
-                        refreshing={isLoading}
-                        onRefresh={fetchArticles}
+                        refreshing={isRefreshing}
+                        onRefresh={loadArticles}
                         showsVerticalScrollIndicator={false}
                     />
                     {!searchQuery && articleItems.length > 0 && (
