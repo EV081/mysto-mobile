@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, Image, StyleSheet, TouchableOpacity } from "react-native";
 import { Cosmetic } from "@interfaces/cosmetics/Cosmetic";
+import { CosmeticType } from "@interfaces/cosmetics/CosmeticType";
 
 const coinImage = require("../../../assets/coin.png");
 
@@ -9,14 +10,28 @@ type Props = {
   onBuy: () => void;
 };
 
+function getImageStyle(type: CosmeticType) {
+  switch (type) {
+    case CosmeticType.CABEZA:
+      return { ...styles.image, marginTop: 14, marginBottom: 2, height: 80, width: 80 };
+    case CosmeticType.PANTALONES:
+      return { ...styles.image, marginTop: -10, marginBottom: 16, height: 80, width: 80 };
+    case CosmeticType.CUERPO:
+    default:
+      return { ...styles.image, height: 80, width: 80 };
+  }
+}
+
 export default function ShopCosmeticCard({ cosmetic, onBuy }: Props) {
+  const imgStyle = getImageStyle(cosmetic.type);
+
   return (
     <View style={styles.card}>
       <View style={styles.header}>
         <Text style={styles.name}>{cosmetic.name}</Text>
         <Text style={styles.type}>{cosmetic.type}</Text>
       </View>
-      <Image source={{ uri: cosmetic.imageUrl }} style={styles.image} />
+      <Image source={{ uri: cosmetic.imageUrl }} style={imgStyle} />
       <View style={styles.priceRow}>
         <Image source={coinImage} style={styles.coinIcon} />
         <Text style={styles.price}>{cosmetic.price}</Text>
@@ -60,11 +75,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   image: {
-    width: 64,
-    height: 64,
-    marginBottom: 8,
+    height: 80,
+    width: 80,
     borderRadius: 8,
     backgroundColor: "#e5e7eb",
+    resizeMode: "contain",
   },
   priceRow: {
     flexDirection: "row",

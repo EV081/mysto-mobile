@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, Image, StyleSheet, TouchableOpacity } from "react-native";
 import { Cosmetic } from "@interfaces/cosmetics/Cosmetic";
+import { CosmeticType } from "@interfaces/cosmetics/CosmeticType";
 
 type Props = {
   cosmetic: Cosmetic;
@@ -8,10 +9,25 @@ type Props = {
   onEquip: () => void;
 };
 
+function getImageStyle(type: CosmeticType) {
+  // Ajuste de posición y tamaño por tipo
+  switch (type) {
+    case CosmeticType.CABEZA:
+      return { ...styles.image, marginTop: 12, marginBottom: 2, height: 80, width: 80 };
+    case CosmeticType.PANTALONES:
+      return { ...styles.image, marginTop: -10, marginBottom: 16, height: 80, width: 80 };
+    case CosmeticType.CUERPO:
+    default:
+      return { ...styles.image, height: 80, width: 80 };
+  }
+}
+
 export default function AvatarCosmeticCard({ cosmetic, equipped, onEquip }: Props) {
+  const imgStyle = getImageStyle(cosmetic.type);
+
   return (
     <View style={[styles.card, equipped && styles.equipped]}>
-      <Image source={{ uri: cosmetic.imageUrl }} style={styles.image} />
+      <Image source={{ uri: cosmetic.imageUrl }} style={imgStyle} />
       <Text style={styles.name}>{cosmetic.name}</Text>
       <TouchableOpacity
         style={[styles.button, equipped && styles.buttonDesequip]}
@@ -41,11 +57,11 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   image: {
-    width: 56,
-    height: 56,
-    marginBottom: 6,
+    height: 80,
+    width: 80,
     borderRadius: 8,
     backgroundColor: "#e5e7eb",
+    resizeMode: "contain",
   },
   name: {
     fontWeight: "bold",

@@ -11,7 +11,7 @@ type Props = {
 };
 
 export default function AvatarLayers({ equipped }: Props) {
-  const base = require("assets/base.png"); 
+  const base = require("assets/AvatarBase.png"); 
 
   return (
     <View style={styles.avatarContainer}>
