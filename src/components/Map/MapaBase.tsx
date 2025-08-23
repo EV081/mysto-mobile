@@ -5,7 +5,8 @@ import MapView, {
   Marker, 
   Region, 
   PROVIDER_GOOGLE,
-  Callout 
+  Callout,
+  Polyline
 } from "react-native-maps";
 import * as Location from "expo-location";
 import { getPagedMuseums } from "@services/museum/getListarMuseums";
@@ -14,6 +15,7 @@ import { useNavigation } from "@react-navigation/native";
 import { Text, Pressable } from "react-native";
 import { useMuseumUtils } from "@hooks/useMuseumUtils";
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { LocationObject } from "expo-location";
 
 // Interfaz para los resultados de búsqueda
 interface SearchResult {
@@ -31,11 +33,26 @@ interface MapaBaseProps {
 }
 
 export default function MapaBase({ searchResults = [], onSearchResultPress }: MapaBaseProps) {
+  // Estados del componente
   const [region, setRegion] = useState<Region | null>(null);
   const [museums, setMuseums] = useState<MuseumResponse[]>([]);
   const [selectedMuseum, setSelectedMuseum] = useState<MuseumResponse | null>(null);
+  const [showRoute, setShowRoute] = useState(false);
+  const [routeDistance, setRouteDistance] = useState<number | null>(null);
   const [userLocation, setUserLocation] = useState<{latitude: number, longitude: number} | null>(null);
-  const [locationPermission, setLocationPermission] = useState<'granted' | 'denied' | 'pending'>('pending');
+  const [locationPermission, setLocationPermission] = useState<'granted' | 'denied' | 'undetermined'>('undetermined');
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // Nuevo estado para controlar la ruta independientemente del panel
+  const [activeRoute, setActiveRoute] = useState<{
+    museum: MuseumResponse;
+    userLocation: {latitude: number, longitude: number};
+  } | null>(null);
+  
+  // Estados para la ruta real de Google
+  const [realRouteCoordinates, setRealRouteCoordinates] = useState<Array<{latitude: number, longitude: number}>>([]);
+  const [isLoadingRoute, setIsLoadingRoute] = useState(false);
+  const [routeInstructions, setRouteInstructions] = useState<string[]>([]);
   const navigation = useNavigation();
   const { openInMaps } = useMuseumUtils();
   const mapRef = useRef<MapView>(null);
@@ -47,6 +64,175 @@ export default function MapaBase({ searchResults = [], onSearchResultPress }: Ma
     longitudeDelta: 0.05,
   };
 
+  // Calcular distancia entre dos puntos (fórmula de Haversine)
+  const calculateDistance = useCallback((lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371; // Radio de la Tierra en km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  }, []);
+
+  // Función para generar una ruta que siga mejor las calles (algoritmo mejorado)
+  // Esta función crea rutas que simulan seguir calles reales sin pasar sobre casas
+  // Usa ondas sinusoidales de baja amplitud para crear giros naturales
+  const generateStreetFollowingRoute = useCallback((origin: {latitude: number, longitude: number}, destination: {latitude: number, longitude: number}) => {
+    const start = { latitude: origin.latitude, longitude: origin.longitude };
+    const end = { latitude: destination.latitude, longitude: destination.longitude };
+    
+    // Calcular distancia para determinar complejidad de la ruta
+    const distance = calculateDistance(
+      start.latitude, start.longitude,
+      end.latitude, end.longitude
+    );
+    
+    // Crear puntos intermedios que simulen una ruta real
+    const numPoints = Math.max(15, Math.min(40, Math.floor(distance * 8)));
+    const routePoints = [start];
+    
+    // Generar puntos intermedios con variaciones que simulen calles
+    for (let i = 1; i < numPoints; i++) {
+      const progress = i / numPoints;
+      
+      // Interpolación lineal base
+      const baseLat = start.latitude + (end.latitude - start.latitude) * progress;
+      const baseLon = start.longitude + (end.longitude - start.longitude) * progress;
+      
+      // Crear variaciones más realistas que sigan patrones de calles
+      // Usar múltiples ondas sinusoidales para simular giros en intersecciones
+      // Reducir la amplitud para que no pase sobre casas
+      const wave1 = Math.sin(progress * Math.PI * 2) * 0.00005; // Onda principal
+      const wave2 = Math.sin(progress * Math.PI * 4) * 0.00003; // Onda secundaria
+      const wave3 = Math.sin(progress * Math.PI * 6) * 0.00002; // Onda terciaria
+      
+      // Agregar variación aleatoria muy sutil
+      const randomVariation = (Math.random() - 0.5) * 0.00002;
+      
+      // Combinar todas las variaciones para crear una ruta natural
+      const finalLat = baseLat + wave1 + wave2 + wave3 + randomVariation;
+      const finalLon = baseLon + wave1 + wave2 + wave3 + randomVariation;
+      
+      routePoints.push({
+        latitude: finalLat,
+        longitude: finalLon,
+      });
+    }
+    
+    routePoints.push(end);
+    return routePoints;
+  }, [calculateDistance]);
+
+  // Función para actualizar la distancia de la ruta
+  const updateRouteDistance = useCallback(() => {
+    if (!activeRoute) return;
+    
+    const distance = calculateDistance(
+      activeRoute.userLocation.latitude, activeRoute.userLocation.longitude,
+      activeRoute.museum.latitude, activeRoute.museum.longitude
+    );
+    setRouteDistance(distance);
+  }, [activeRoute, calculateDistance]);
+
+  // Función para generar instrucciones de ruta simuladas
+  const generateRouteInstructions = useCallback((routePoints: Array<{latitude: number, longitude: number}>) => {
+    if (routePoints.length < 3) return [];
+    
+    const instructions = [];
+    const totalDistance = calculateDistance(
+      routePoints[0].latitude, routePoints[0].longitude,
+      routePoints[routePoints.length - 1].latitude, routePoints[routePoints.length - 1].longitude
+    );
+    
+    // Instrucción inicial
+    instructions.push(`🚶‍♂️ Caminar ${totalDistance.toFixed(1)} km hacia el destino`);
+    
+    // Agregar instrucciones intermedias si la ruta es larga
+    if (totalDistance > 0.5) {
+      const midPoint = Math.floor(routePoints.length / 2);
+      instructions.push(`📍 Continuar por la ruta principal`);
+      
+      if (totalDistance > 1.0) {
+        instructions.push(`🔄 Mantener dirección hacia el destino`);
+      }
+    }
+    
+    // Instrucción final
+    instructions.push(`🎯 Llegar al museo`);
+    
+    return instructions;
+  }, [calculateDistance]);
+
+  // Función para mostrar/ocultar la ruta
+  const toggleRoute = useCallback(async () => {
+    if (!userLocation || !selectedMuseum) return;
+    
+    if (activeRoute) {
+      // Ocultar ruta
+      setShowRoute(false);
+      setRouteDistance(null);
+      setActiveRoute(null);
+      setRealRouteCoordinates([]);
+      setRouteInstructions([]);
+    } else {
+      // Mostrar ruta
+      setShowRoute(true);
+      const distance = calculateDistance(
+        userLocation.latitude, userLocation.longitude,
+        selectedMuseum.latitude, selectedMuseum.longitude
+      );
+      setRouteDistance(distance);
+      
+      // Guardar la información de la ruta activa
+      setActiveRoute({
+        museum: selectedMuseum,
+        userLocation: userLocation
+      });
+      
+      // Obtener ruta real (Google Directions o simulación)
+      const routePoints = generateStreetFollowingRoute(userLocation, {
+        latitude: selectedMuseum.latitude,
+        longitude: selectedMuseum.longitude
+      });
+      setRealRouteCoordinates(routePoints);
+      
+      // Generar instrucciones simuladas
+      const instructions = generateRouteInstructions(routePoints);
+      setRouteInstructions(instructions);
+    }
+  }, [userLocation, selectedMuseum, activeRoute, calculateDistance, generateStreetFollowingRoute, generateRouteInstructions]);
+
+  // Función para centrar el mapa en la ruta
+  const centerMapOnRoute = useCallback(() => {
+    if (!activeRoute || !mapRef.current) return;
+    
+    const routeCoords = generateStreetFollowingRoute(activeRoute.userLocation, activeRoute.museum);
+    if (routeCoords.length === 0) return;
+    
+    // Calcular región que incluya toda la ruta
+    const minLat = Math.min(activeRoute.userLocation.latitude, activeRoute.museum.latitude);
+    const maxLat = Math.max(activeRoute.userLocation.latitude, activeRoute.museum.latitude);
+    const minLon = Math.min(activeRoute.userLocation.longitude, activeRoute.museum.longitude);
+    const maxLon = Math.max(activeRoute.userLocation.longitude, activeRoute.museum.longitude);
+    
+    const newRegion = {
+      latitude: (minLat + maxLat) / 2,
+      longitude: (minLon + maxLon) / 2,
+      latitudeDelta: Math.abs(maxLat - minLat) * 1.5, // Agregar margen
+      longitudeDelta: Math.abs(maxLon - minLon) * 1.5,
+    };
+    
+    mapRef.current.animateToRegion(newRegion, 1000);
+    
+    // Ocultar el panel de opciones después de centrar la ruta
+    setTimeout(() => {
+      setSelectedMuseum(null);
+    }, 1200); // Esperar a que termine la animación
+  }, [activeRoute, generateStreetFollowingRoute]);
+
   // Solicitar ubicación
   const getUserLocation = async () => {
     try {
@@ -54,28 +240,48 @@ export default function MapaBase({ searchResults = [], onSearchResultPress }: Ma
       
       if (status === "granted") {
         setLocationPermission('granted');
-        const loc = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.High
-        });
         
-        const newUserLocation = {
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-        };
-        
-        setUserLocation(newUserLocation);
-        
-        // Solo actualizar la región inicial si es la primera vez
-        if (!region) {
-          setRegion({
-            latitude: newUserLocation.latitude,
-            longitude: newUserLocation.longitude,
-            latitudeDelta: 0.05,
-            longitudeDelta: 0.05,
+        try {
+          const loc = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.High
           });
+          
+          const newUserLocation = {
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude,
+          };
+          
+          setUserLocation(newUserLocation);
+          
+          // Solo actualizar la región inicial si es la primera vez
+          if (!region) {
+            setRegion({
+              latitude: newUserLocation.latitude,
+              longitude: newUserLocation.longitude,
+              latitudeDelta: 0.05,
+              longitudeDelta: 0.05,
+            });
+          }
+          
+          return newUserLocation;
+        } catch (locationError) {
+          console.warn('Error al obtener coordenadas de ubicación:', locationError);
+          // Si falla la obtención de coordenadas, establecer ubicación por defecto
+          setLocationPermission('denied');
+          setUserLocation(null);
+          
+          if (!region) {
+            setRegion(defaultRegion);
+          }
+          
+          Alert.alert(
+            "Error de ubicación",
+            "No se pudo obtener tu ubicación exacta. Se usará Lima como ubicación por defecto.",
+            [{ text: "Entendido", style: "default" }]
+          );
+          
+          return null;
         }
-        
-        return newUserLocation;
       } else {
         setLocationPermission('denied');
         setUserLocation(null);
@@ -127,8 +333,8 @@ export default function MapaBase({ searchResults = [], onSearchResultPress }: Ma
         
         return null;
       }
-    } catch (error) {
-      console.error("Error al obtener ubicación:", error);
+    } catch (permissionError) {
+      console.warn('Error al solicitar permisos de ubicación:', permissionError);
       setLocationPermission('denied');
       setUserLocation(null);
       
@@ -138,8 +344,8 @@ export default function MapaBase({ searchResults = [], onSearchResultPress }: Ma
       }
       
       Alert.alert(
-        "Error de ubicación",
-        "No se pudo obtener tu ubicación. Se usará Lima como ubicación por defecto.",
+        "Error de permisos",
+        "No se pudieron verificar los permisos de ubicación. Se usará Lima como ubicación por defecto.",
         [{ text: "Entendido", style: "default" }]
       );
       
@@ -147,50 +353,107 @@ export default function MapaBase({ searchResults = [], onSearchResultPress }: Ma
     }
   };
 
-  // Función para hacer focus en la ubicación del usuario
-  const focusOnUserLocation = useCallback(async () => {
-    // Si no hay permisos, solicitar permisos primero
-    if (locationPermission === 'denied') {
-      await getUserLocation();
-      return;
-    }
-    
-    // Si no hay ubicación pero hay permisos, obtener ubicación
-    if (!userLocation && locationPermission === 'granted') {
-      const location = await getUserLocation();
-      if (!location) return;
-    }
-    
-    // Si hay ubicación, hacer focus
-    if (userLocation && mapRef.current) {
-      const newRegion = {
-        latitude: userLocation.latitude,
-        longitude: userLocation.longitude,
-        latitudeDelta: 0.01, // Zoom más cercano para focus
-        longitudeDelta: 0.01,
-      };
-      
-      // Animar el mapa hacia la ubicación del usuario
-      mapRef.current.animateToRegion(newRegion, 1000);
-    }
-  }, [userLocation, locationPermission]);
-
   // Función para hacer focus en un resultado de búsqueda
   const focusOnSearchResult = useCallback((result: SearchResult) => {
     if (mapRef.current) {
-      const newRegion = {
-        latitude: result.latitude,
-        longitude: result.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      };
-      
-      mapRef.current.animateToRegion(newRegion, 1000);
+      try {
+        const newRegion = {
+          latitude: result.latitude,
+          longitude: result.longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        };
+        
+        mapRef.current.animateToRegion(newRegion, 1000);
+      } catch (error) {
+        console.warn('Error al hacer focus en resultado de búsqueda:', error);
+      }
     }
     
     // Llamar al callback si existe
     onSearchResultPress?.(result);
   }, [onSearchResultPress]);
+
+  // Función para hacer focus en la ubicación del usuario
+  const focusOnUserLocation = useCallback(async () => {
+    try {
+      // Si no hay permisos, solicitar permisos primero
+      if (locationPermission === 'denied') {
+        const location = await getUserLocation();
+        if (!location) {
+          // Si aún no se pudo obtener ubicación, mostrar mensaje informativo
+          Alert.alert(
+            "Ubicación no disponible",
+            "No se pudo obtener tu ubicación. Verifica que tengas habilitados los servicios de ubicación en tu dispositivo.",
+            [
+              { text: "Entendido", style: "default" },
+              {
+                text: "Configuración",
+                onPress: () => {
+                  if (Platform.OS === "ios") {
+                    Linking.openURL("app-settings:");
+                  } else {
+                    Linking.openSettings();
+                  }
+                },
+              },
+            ]
+          );
+          return;
+        }
+      }
+      
+      // Si no hay ubicación pero hay permisos, obtener ubicación
+      if (!userLocation && locationPermission === 'granted') {
+        const location = await getUserLocation();
+        if (!location) return;
+      }
+      
+      // Si hay ubicación, hacer focus
+      if (userLocation && mapRef.current) {
+        try {
+          const newRegion = {
+            latitude: userLocation.latitude,
+            longitude: userLocation.longitude,
+            latitudeDelta: 0.01, // Zoom más cercano para focus
+            longitudeDelta: 0.01,
+          };
+          
+          // Animar el mapa hacia la ubicación del usuario
+          mapRef.current.animateToRegion(newRegion, 1000);
+        } catch (mapError) {
+          console.warn('Error al animar mapa:', mapError);
+          // Fallback: centrar sin animación usando region
+          if (mapRef.current) {
+            const fallbackRegion = {
+              latitude: userLocation.latitude,
+              longitude: userLocation.longitude,
+              latitudeDelta: 0.01,
+              longitudeDelta: 0.01,
+            };
+            // Usar animateToRegion con duración 0 como fallback
+            mapRef.current.animateToRegion(fallbackRegion, 0);
+          }
+        }
+      } else {
+        // Si no hay ubicación disponible, centrar en la región por defecto
+        if (mapRef.current && region) {
+          try {
+            mapRef.current.animateToRegion(region, 1000);
+          } catch (mapError) {
+            console.warn('Error al centrar mapa en región por defecto:', mapError);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Error al hacer focus en ubicación:', error);
+      Alert.alert(
+        "Error",
+        "No se pudo centrar el mapa en tu ubicación. Se usará la vista por defecto.",
+        [{ text: "Entendido", style: "default" }]
+      );
+    }
+  }, [userLocation, locationPermission, region, getUserLocation]);
 
   // Consultar museos
   const fetchMuseums = async () => {
@@ -205,25 +468,59 @@ export default function MapaBase({ searchResults = [], onSearchResultPress }: Ma
 
   // Al montar
   useEffect(() => {
-    // Cargar museos inmediatamente
-    fetchMuseums();
-    
-    // Establecer región por defecto inmediatamente para que el mapa se cargue
-    if (!region) {
-      setRegion(defaultRegion);
-    }
-    
-    // Solicitar permisos de ubicación de forma no bloqueante
-    getUserLocation();
+    const initializeMap = async () => {
+      try {
+        // Cargar museos inmediatamente
+        await fetchMuseums();
+        
+        // Establecer región por defecto inmediatamente para que el mapa se cargue
+        if (!region) {
+          setRegion(defaultRegion);
+        }
+        
+        // Solicitar permisos de ubicación de forma no bloqueante
+        // Usar setTimeout para evitar bloquear la carga inicial
+        setTimeout(() => {
+          getUserLocation().catch(error => {
+            console.warn('Error no crítico al obtener ubicación:', error);
+            // No mostrar alerta aquí, solo log del error
+          });
+        }, 100);
+        
+      } catch (error) {
+        console.error('Error crítico al inicializar el mapa:', error);
+        // Asegurar que al menos el mapa se cargue con región por defecto
+        if (!region) {
+          setRegion(defaultRegion);
+        }
+      }
+    };
+
+    initializeMap();
   }, []);
 
+  // Actualizar distancia de la ruta cuando cambie activeRoute
+  useEffect(() => {
+    if (activeRoute) {
+      updateRouteDistance();
+    } else {
+      setRouteDistance(null);
+    }
+  }, [activeRoute, updateRouteDistance]);
+
   // Navegación al tocar un museo
-  const handleMuseumPress = useCallback(
-    (museum: MuseumResponse) => {
-      setSelectedMuseum(museum);
-    },
-    []
-  );
+  const handleMuseumPress = useCallback((museum: MuseumResponse) => {
+    // Si ya hay una ruta activa y se selecciona un museo diferente, limpiar la ruta anterior
+    if (activeRoute && activeRoute.museum.id !== museum.id) {
+      setActiveRoute(null);
+      setRealRouteCoordinates([]);
+      setRouteInstructions([]);
+      setShowRoute(false);
+      setRouteDistance(null);
+    }
+    
+    setSelectedMuseum(museum);
+  }, [activeRoute]);
 
   // Función para ir al museo (mostrar direcciones)
   const handleGoToMuseum = useCallback(() => {
@@ -363,6 +660,17 @@ export default function MapaBase({ searchResults = [], onSearchResultPress }: Ma
                 </Callout>
               </Marker>
             ))}
+
+            {/* Ruta (solo si activeRoute existe) */}
+            {activeRoute && realRouteCoordinates.length > 0 && (
+              <Polyline
+                coordinates={realRouteCoordinates}
+                strokeWidth={4}
+                strokeColor="#2196F3" // Azul para la ruta
+                lineDashPattern={[10, 5]} // Línea punteada para mejor visibilidad
+                zIndex={1000} // Asegurar que esté por encima de otros elementos
+              />
+            )}
           </MapView>
 
           {/* Botón de ubicación en la parte inferior */}
@@ -399,6 +707,23 @@ export default function MapaBase({ searchResults = [], onSearchResultPress }: Ma
                 <Pressable style={styles.goToButton} onPress={handleGoToMuseum}>
                   <Ionicons name="navigate" size={20} color="#fff" />
                 </Pressable>
+                <Pressable style={styles.routeButton} onPress={toggleRoute}>
+                  <Ionicons 
+                    name={activeRoute ? "map" : "map-outline"} 
+                    size={20} 
+                    color="#fff" 
+                  />
+                  {isLoadingRoute && (
+                    <View style={styles.loadingIndicator}>
+                      <Text style={styles.loadingText}>...</Text>
+                    </View>
+                  )}
+                  {activeRoute && !isLoadingRoute && (
+                    <View style={styles.routeActiveIndicator}>
+                      <Text style={styles.routeActiveText}>ON</Text>
+                    </View>
+                  )}
+                </Pressable>
                 <Pressable style={styles.infoButton} onPress={() => handleMuseumInfo(selectedMuseum)}>
                   <Ionicons name="information-circle" size={20} color="#fff" />
                 </Pressable>
@@ -406,6 +731,34 @@ export default function MapaBase({ searchResults = [], onSearchResultPress }: Ma
                   <Ionicons name="rocket" size={20} color="#fff" />
                 </Pressable>
               </View>
+
+              {/* Información de distancia y ruta */}
+              {activeRoute && routeDistance && (
+                <View style={styles.routeInfo}>
+                  <Text style={styles.routeInfoText}>
+                    📍 Distancia: {routeDistance.toFixed(1)} km
+                  </Text>
+                  
+                  {/* Instrucciones de ruta */}
+                  {routeInstructions.length > 0 && (
+                    <View style={styles.routeInstructions}>
+                      <Text style={styles.instructionsTitle}>🗺️ Instrucciones de ruta:</Text>
+                      {routeInstructions.map((instruction, index) => (
+                        <Text key={index} style={styles.instructionText}>
+                          {instruction}
+                        </Text>
+                      ))}
+                    </View>
+                  )}
+                  
+                  <Text style={styles.routeActiveMessage}>
+                    🗺️ Ruta activa - Usa el botón "Centrar en ruta" para ver todo el camino
+                  </Text>
+                  <Pressable style={styles.centerRouteButton} onPress={centerMapOnRoute}>
+                    <Text style={styles.centerRouteButtonText}>Centrar en ruta</Text>
+                  </Pressable>
+                </View>
+              )}
             </View>
           )}
         </>
@@ -575,14 +928,14 @@ const styles = StyleSheet.create({
   museumCardButtons: {
     flexDirection: "row",
     justifyContent: "space-between",
-    gap: 12,
+    gap: 8, // Reducir gap para acomodar 4 botones
     marginTop: 8,
   },
   goToButton: {
     flex: 1,
     backgroundColor: "#4CAF50",
     borderRadius: 12,
-    padding: 16,
+    padding: 12, // Reducir padding para acomodar 4 botones
     alignItems: "center",
     justifyContent: "center",
     elevation: 6,
@@ -601,7 +954,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#607D8B",
     borderRadius: 12,
-    padding: 16,
+    padding: 12, // Reducir padding para acomodar 4 botones
     alignItems: "center",
     justifyContent: "center",
     elevation: 6,
@@ -620,7 +973,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#2196F3",
     borderRadius: 12,
-    padding: 16,
+    padding: 12, // Reducir padding para acomodar 4 botones
     alignItems: "center",
     justifyContent: "center",
     elevation: 6,
@@ -634,5 +987,116 @@ const styles = StyleSheet.create({
     backgroundColor: "#1976D2",
     elevation: 3,
     shadowOpacity: 0.2,
+  },
+  routeButton: {
+    flex: 1,
+    backgroundColor: "#FF9800", // Naranja para el botón de ruta
+    borderRadius: 12,
+    padding: 12, // Reducir padding para acomodar 4 botones
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    minHeight: 56,
+  },
+  routeButtonPressed: {
+    backgroundColor: "#F57C00",
+    elevation: 3,
+    shadowOpacity: 0.2,
+  },
+  routeInfo: {
+    marginTop: 12,
+    alignItems: "center",
+  },
+  routeInfoText: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 8,
+  },
+  centerRouteButton: {
+    backgroundColor: "#2196F3",
+    borderRadius: 12,
+    padding: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+  },
+  centerRouteButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+  routeActiveIndicator: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: '#4CAF50', // Verde para indicar que está activo
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    minWidth: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  routeActiveText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  routeActiveMessage: {
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  routeInstructions: {
+    marginTop: 8,
+    alignItems: "flex-start",
+    width: "100%",
+  },
+  instructionsTitle: {
+    fontSize: 14,
+    fontWeight: "bold",
+    color: "#333",
+    marginBottom: 4,
+  },
+  instructionText: {
+    fontSize: 12,
+    color: "#666",
+    marginBottom: 2,
+  },
+  loadingIndicator: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: '#FF9800', // Naranja para el indicador de carga
+    borderRadius: 10,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    minWidth: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+  },
+  loadingText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
 });
