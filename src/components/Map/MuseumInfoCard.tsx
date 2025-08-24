@@ -30,6 +30,10 @@ type Props = {
   routeActive?: boolean;
   routeDisabled?: boolean; // cuando no hay userLocation
   onToggleRoute?: () => void;
+
+  /** NUEVO: separación desde los bordes */
+  topInset?: number;
+  bottomInset?: number;
 };
 
 const openExternalDirections = async (dest: LatLng, origin?: LatLng | null) => {
@@ -59,6 +63,8 @@ function MuseumInfoCard({
   routeActive = false,
   routeDisabled = false,
   onToggleRoute,
+  topInset,
+  bottomInset,
 }: Props) {
   const navigation = useNavigation<any>();
 
@@ -66,10 +72,10 @@ function MuseumInfoCard({
     return [
       styles.wrap,
       placement === 'top'
-        ? { top: 12, bottom: undefined }
-        : { bottom: 12, top: undefined },
+        ? { top: topInset ?? 12, bottom: undefined }
+        : { bottom: bottomInset ?? 12, top: undefined },
     ];
-  }, [placement]);
+  }, [placement, topInset, bottomInset]);
 
   const goInfo = useCallback(() => {
     if (!museum) return;

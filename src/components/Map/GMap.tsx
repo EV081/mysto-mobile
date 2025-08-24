@@ -11,14 +11,32 @@ import { MaterialIcons } from '@expo/vector-icons';
 
 import MuseumInfoCard, { MuseumLite } from '@components/Map/MuseumInfoCard';
 import { getDirections } from '@components/Map/getDirections';
-
-// Services & types del backend
 import { getPagedMuseums } from '@services/museum/getListarMuseums';
 import type { MuseumResponse } from '@interfaces/museum/MuseumResponse';
 
 // ===== Helpers y constantes =====
-type LatLng = { latitude: number; longitude: number };
-const DEFAULT_COORD: LatLng = { latitude: -12.0464, longitude: -77.0428 }; // Lima
+export type LatLng = { latitude: number; longitude: number };
+
+type ExternalPlace = {
+  id: string | number;
+  name: string;
+  latitude: number;
+  longitude: number;
+};
+
+type Props = {
+  /** Coordenada a la que debe volar el mapa cuando cambie la búsqueda */
+  focusCoord?: LatLng | null;
+  /** Zoom al centrar con búsqueda (por defecto 17) */
+  focusZoom?: number;
+  /** Lugares externos (POIs reales) a pintar como pines */
+  externalPlaces?: ExternalPlace[];
+  /** NUEVO: separación superior para la tarjeta (debajo de la search bar) */
+  cardTopInset?: number;
+};
+
+// Coordenada base (Lima)
+const DEFAULT_COORD: LatLng = { latitude: -12.0464, longitude: -77.0428 };
 const DEFAULT_ZOOM = 13;
 
 // Iconos locales
@@ -31,7 +49,7 @@ const toLatLng = (c?: { latitude?: number; longitude?: number } | null): LatLng 
     ? { latitude: c.latitude, longitude: c.longitude }
     : null;
 
-// --- NUEVO: encuadra la cámara a una lista de coordenadas (heurística de zoom) ---
+// --- Encuadra la cámara a una lista de coordenadas ---
 function fitCameraToCoords(
   coords: LatLng[],
   flyTo: (c: LatLng, zoom?: number) => void
@@ -70,7 +88,12 @@ function fitCameraToCoords(
   flyTo(center, zoom);
 }
 
-export default function GMap() {
+export default function GMap({
+  focusCoord = null,
+  focusZoom = 17,
+  externalPlaces = [],
+  cardTopInset = 12, // <-- NUEVO default
+}: Props) {
   const [status, requestPerm] = useLocationPermissions();
   const [isReady, setIsReady] = useState(false);
   const [museos, setMuseos] = useState<MuseumResponse[]>([]);
@@ -128,6 +151,16 @@ export default function GMap() {
       googleRef.current?.setCameraPosition({ coordinates: coords, zoom, duration: 600 });
     }
   }, []);
+
+  // 👉 Reaccionar a focusCoord para centrar el mapa desde HomeScreen
+  useEffect(() => {
+    if (focusCoord) {
+      setFollowUser(false);
+      setSelectedPOI(null);
+      setSelectedMuseum(null);
+      flyTo(focusCoord, focusZoom ?? 17);
+    }
+  }, [focusCoord, focusZoom, flyTo]);
 
   // Seguimiento de ubicación
   const startWatchingLocation = useCallback(async () => {
@@ -191,6 +224,18 @@ export default function GMap() {
     [museos]
   );
 
+  // Marcadores externos (iOS)
+  const extMarkersApple: AppleMapsMarker[] = useMemo(
+    () =>
+      (externalPlaces || []).map((p) => ({
+        id: `ext-${p.id}`,
+        coordinates: { latitude: p.latitude, longitude: p.longitude },
+        tintColor: 'orange',
+        systemImage: 'mappin.and.ellipse', // pin clásico
+      })),
+    [externalPlaces]
+  );
+
   // Marker del usuario en iOS como annotation con icono propio
   const appleAnnotations = useMemo(() => {
     if (!userLocation) return [];
@@ -204,9 +249,13 @@ export default function GMap() {
     ];
   }, [userLocation, characterIconRef]);
 
-  const markersApple: AppleMapsMarker[] = baseMarkersApple;
+  // Combinar marcadores en iOS
+  const markersApple: AppleMapsMarker[] = useMemo(
+    () => [...baseMarkersApple, ...extMarkersApple],
+    [baseMarkersApple, extMarkersApple]
+  );
 
-  // Marcadores de museos + usuario (Android) sin callout nativo
+  // Marcadores de museos + usuario + externos (Android) sin callout nativo
   const markersGoogle: GoogleMapsMarker[] = useMemo(() => {
     const base: GoogleMapsMarker[] = museos.map((m) => ({
       id: String(m.id),
@@ -228,8 +277,20 @@ export default function GMap() {
         draggable: false,
       });
     }
+
+    (externalPlaces || []).forEach((p) => {
+      base.push({
+        id: `ext-${p.id}`,
+        title: p.name,
+        coordinates: { latitude: p.latitude, longitude: p.longitude },
+        showCallout: false,
+        draggable: false,
+        // icon: require('../../../assets/pin-gold.png') // si quisieras un asset propio
+      });
+    });
+
     return base;
-  }, [museos, museumIconRef, userLocation, characterIconRef]);
+  }, [museos, museumIconRef, userLocation, characterIconRef, externalPlaces]);
 
   // Pedir y mostrar direcciones reales
   const fetchDirections = useCallback(async () => {
@@ -246,10 +307,7 @@ export default function GMap() {
       setDirCoords(coords);
       setDirActive(true);
 
-      // --- NUEVO: encuadrar la ruta completa ---
-      if (coords.length) {
-        fitCameraToCoords(coords, flyTo);
-      }
+      if (coords.length) fitCameraToCoords(coords, flyTo);
     } catch (e: any) {
       console.warn('Directions error', e?.message || e);
       Alert.alert('Rutas', 'No se pudo obtener la ruta. Intenta de nuevo.');
@@ -273,8 +331,7 @@ export default function GMap() {
     if (dirActive && selectedMuseum && userLocation) {
       fetchDirections();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMuseum?.id]);
+  }, [dirActive, selectedMuseum?.id, userLocation, fetchDirections]);
 
   const Controls = () => (
     <View style={styles.controlsLeft}>
@@ -305,9 +362,6 @@ export default function GMap() {
   const clearSelection = useCallback(() => {
     setSelectedPOI(null);
     setSelectedMuseum(null);
-    // Si quieres, también podrías limpiar la ruta al tocar el mapa.
-    // setDirActive(false);
-    // setDirCoords([]);
   }, []);
 
   // ===== iOS =====
@@ -322,7 +376,7 @@ export default function GMap() {
             mapType: AppleMapsMapType.STANDARD,
             isTrafficEnabled: false,
             selectionEnabled: true,
-            polylineTapThreshold: 40, // <-- facilita tocar la polilínea
+            polylineTapThreshold: 40,
           }}
           uiSettings={{
             compassEnabled: true,
@@ -337,7 +391,7 @@ export default function GMap() {
               ? [{
                   id: 'route',
                   color: 'dodgerblue',
-                  width: 8, // un poco más grueso para tocar mejor
+                  width: 8,
                   coordinates: dirCoords,
                   contourStyle: AppleMapsContourStyle.GEODESIC,
                 }]
@@ -347,7 +401,19 @@ export default function GMap() {
           onMarkerClick={(marker: any) => {
             setFollowUser(false);
             const c = toLatLng(marker?.coordinates);
-            if (marker?.id === '__userChar') { if (c) flyTo(c, 17); return; }
+            if (!c) return;
+
+            // Usuario
+            if (marker?.id === '__userChar') { flyTo(c, 17); return; }
+
+            // Lugar externo
+            if (String(marker?.id).startsWith('ext-')) {
+              setSelectedMuseum(null);
+              flyTo(c, 17);
+              return;
+            }
+
+            // Museo
             const found = museos.find(m => String(m.id) === String(marker?.id));
             if (found) {
               setSelectedMuseum({
@@ -358,9 +424,8 @@ export default function GMap() {
                 description: found.description,
               });
             }
-            if (c) flyTo(c, 17);
+            flyTo(c, 17);
           }}
-          // --- NUEVO: al tocar la polilínea, encuadra ---
           onPolylineClick={() => {
             if (dirCoords.length) fitCameraToCoords(dirCoords, flyTo);
           }}
@@ -369,6 +434,7 @@ export default function GMap() {
 
         <MuseumInfoCard
           placement="top"
+          topInset={cardTopInset}   // <-- NUEVO: empuja la tarjeta bajo la search bar
           visible={!!selectedMuseum}
           museum={selectedMuseum}
           userLocation={userLocation}
@@ -430,7 +496,7 @@ export default function GMap() {
             ? [{
                 id: 'route',
                 color: 'dodgerblue',
-                width: 8, // más ancho para fácil tap
+                width: 8,
                 coordinates: dirCoords,
                 geodesic: true,
               }]
@@ -448,7 +514,19 @@ export default function GMap() {
         onMarkerClick={(marker: any) => {
           setFollowUser(false);
           const c = toLatLng(marker?.coordinates);
-          if (marker?.id === '__userChar') { if (c) flyTo(c, 17); return; }
+          if (!c) return;
+
+          // Usuario
+          if (marker?.id === '__userChar') { flyTo(c, 17); return; }
+
+          // Lugar externo
+          if (String(marker?.id).startsWith('ext-')) {
+            setSelectedMuseum(null);
+            flyTo(c, 17);
+            return;
+          }
+
+          // Museo
           const found = museos.find(m => String(m.id) === String(marker?.id));
           if (found) {
             setSelectedMuseum({
@@ -459,9 +537,8 @@ export default function GMap() {
               description: found.description,
             });
           }
-          if (c) flyTo(c, 17);
+          flyTo(c, 17);
         }}
-        // --- NUEVO: al tocar la polilínea, encuadra ---
         onPolylineClick={() => {
           if (dirCoords.length) fitCameraToCoords(dirCoords, flyTo);
         }}
@@ -473,6 +550,7 @@ export default function GMap() {
 
       <MuseumInfoCard
         placement="top"
+        topInset={cardTopInset}   // <-- NUEVO: empuja la tarjeta bajo la search bar
         visible={!!selectedMuseum}
         museum={selectedMuseum}
         userLocation={userLocation}
@@ -507,6 +585,7 @@ export default function GMap() {
   );
 }
 
+// ===== Estilos =====
 const styles = StyleSheet.create({
   container: { flex: 1, borderRadius: 12, overflow: 'hidden' },
 
