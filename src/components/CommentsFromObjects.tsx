@@ -46,6 +46,9 @@ export default function CommentsFromObjects({ reviews, loading, objectId }: Comm
                 <Text style={styles.commentText} numberOfLines={2} ellipsizeMode="tail">
                 • {review.content}
                 </Text>
+                <Text style={{ fontSize: 11, color: '#64748b', marginLeft: 12 }}>
+                    Por: {review.userName ?? 'Usuario anónimo'}
+                </Text>
                 <View style={styles.commentMeta}>
                 <View style={styles.starsContainer}>
                     {[...Array(5)].map((_, starIdx) => (
