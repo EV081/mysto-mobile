@@ -45,17 +45,26 @@ export function useStorageState(key: string): UseStateHook<string> {
 
 	const setValue = useCallback(
 		async (v: string | null) => {
+		  console.log(`[useStorageState] setValue called for key=${key} value=${v}`);
 			try {
+				// Optimistically update local state
 				setValueState(v);
 				await setStorageItemAsync(key, v);
 			} catch (error) {
 				console.error("Error setting storage value: ", error);
-				// Revertir el estado si falla la escritura
-				setValueState(value);
+				// If write fails, read the current stored value and restore it
+				try {
+					const current = await getStorageItemAsync(key);
+			  console.log(`[useStorageState] revert to current stored value for key=${key} value=${current}`);
+					setValueState(current);
+				} catch (readErr) {
+					console.error("Error reverting storage value: ", readErr);
+					setValueState(null);
+				}
 				throw error;
 			}
 		},
-		[key, value],
+		[key],
 	);
 
 	return [[loading, value], setValue];

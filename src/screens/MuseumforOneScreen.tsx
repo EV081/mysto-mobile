@@ -120,7 +120,6 @@ export default function MuseumforOneScreen() {
     },
     [navigation, convertToAlbumItem]
   );
-
   if (!museumId) {
     return (
       <View style={[styles.centered, { backgroundColor: colors.background }]}>

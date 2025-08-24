@@ -56,11 +56,11 @@ export default function RegisterForm({
       return;
     }
     if (!isValidName(fn)) {
-      showError('El nombre debe tener mínimo 3 letras, sin espacios al inicio/fin y solo letras con espacios internos.');
+      showError('El nombre debe tener mínimo 3 letras');
       return;
     }
     if (!isValidName(ln)) {
-      showError('El apellido debe tener mínimo 3 letras, sin espacios al inicio/fin y solo letras con espacios internos.');
+      showError('El apellido debe tener mínimo 3 letras');
       return;
     }
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -69,7 +69,7 @@ export default function RegisterForm({
       return;
     }
     if (pw.trim().length < 6) {
-      showError('La contraseña debe tener mínimo 6 caracteres y no puede ser solo espacios.');
+      showError('La contraseña debe tener mínimo 6 caracteres');
       return;
     }
     if (pw !== cpw) {

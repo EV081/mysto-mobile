@@ -3,7 +3,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useAuthContext } from '@contexts/AuthContext';
 import { LoginRequest } from '@interfaces/auth/LoginRequest';
 import { getRoleBasedOnToken } from '@utils/getRoleBasedOnToken';
-
+import { useMemo } from 'react';
 interface UseAuthOptions {
   onSuccess?: () => void;
   onError?: (error: unknown) => void;
@@ -15,14 +15,16 @@ export function useAuthState() {
   const isAuthenticated = !!context.session;
   const isLoading = context.isLoading;
 
-  // Si session es un token JWT
-  const role = context.session ? getRoleBasedOnToken(context.session) : undefined;
+  const role = useMemo(
+    () => (context.session ? getRoleBasedOnToken(context.session) : undefined),
+    [context.session]
+  );
 
   return {
     ...context,
     isAuthenticated,
     isLoading,
-    role, 
+    role,
   };
 }
 

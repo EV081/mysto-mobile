@@ -31,11 +31,11 @@ export const useMuseumData = (museumId: number, onMuseumDeleted?: () => void) =>
       const response = await getMuseumForId(museumId);
       setMuseum(response.data);
       
-      const data: PagedResponse<CulturalObjectResponse> = await getPagedMuseums(museumId, 0, pageSize);
-      setObjects(data.contents);
-      setCurrentPage(data.paginaActual);
-      setTotalPages(data.totalPaginas);
-      setTotalElements(data.totalElementos);
+  const data: PagedResponse<CulturalObjectResponse> = await getPagedMuseums(museumId, 0, pageSize);
+  setObjects(data.contents);
+  setCurrentPage(data.page);
+  setTotalPages(data.totalPages);
+  setTotalElements(data.totalElements);
       setFilteredObjects(data.contents);
     } catch (e) {
       console.error('Error loading museum data:', e);
@@ -46,11 +46,11 @@ export const useMuseumData = (museumId: number, onMuseumDeleted?: () => void) =>
   // Cargar objetos de una página específica
   const loadPageObjects = useCallback(async (page: number) => {
     try {
-      const data: PagedResponse<CulturalObjectResponse> = await getPagedMuseums(museumId, page, pageSize);
-      setObjects(data.contents);
-      setCurrentPage(data.paginaActual);
-      setTotalPages(data.totalPaginas);
-      setTotalElements(data.totalElementos);
+  const data: PagedResponse<CulturalObjectResponse> = await getPagedMuseums(museumId, page, pageSize);
+  setObjects(data.contents);
+  setCurrentPage(data.page);
+  setTotalPages(data.totalPages);
+  setTotalElements(data.totalElements);
       if (!searchQuery) {
         setFilteredObjects(data.contents);
       }
@@ -68,10 +68,10 @@ export const useMuseumData = (museumId: number, onMuseumDeleted?: () => void) =>
         getPagedMuseums(museumId, currentPage, pageSize)
       ]);
       setMuseum(museumResponse.data);
-      setObjects(objectsResponse.contents);
-      setCurrentPage(objectsResponse.paginaActual);
-      setTotalPages(objectsResponse.totalPaginas);
-      setTotalElements(objectsResponse.totalElementos);
+  setObjects(objectsResponse.contents);
+  setCurrentPage(objectsResponse.page);
+  setTotalPages(objectsResponse.totalPages);
+  setTotalElements(objectsResponse.totalElements);
       if (!searchQuery) {
         setFilteredObjects(objectsResponse.contents);
       }

@@ -27,34 +27,29 @@ const Pagination: React.FC<PaginationProps> = ({
     const maxVisiblePages = 5;
     
     if (totalPages <= maxVisiblePages) {
-      // Mostrar todas las páginas si hay pocas
       for (let i = 0; i < totalPages; i++) {
         pages.push(i);
       }
     } else {
-      // Mostrar páginas con lógica inteligente
       if (currentPage <= 2) {
-        // Al inicio: mostrar primeras páginas + última
         for (let i = 0; i < 4; i++) {
           pages.push(i);
         }
-        pages.push(-1); // Separador
+        pages.push(-1); 
         pages.push(totalPages - 1);
       } else if (currentPage >= totalPages - 3) {
-        // Al final: mostrar primera + últimas páginas
         pages.push(0);
-        pages.push(-1); // Separador
+        pages.push(-1); 
         for (let i = totalPages - 4; i < totalPages; i++) {
           pages.push(i);
         }
       } else {
-        // En medio: mostrar página actual + contexto
         pages.push(0);
-        pages.push(-1); // Separador
+        pages.push(-1);
         for (let i = currentPage - 1; i <= currentPage + 1; i++) {
           pages.push(i);
         }
-        pages.push(-1); // Separador
+        pages.push(-1); 
         pages.push(totalPages - 1);
       }
     }
@@ -69,7 +64,6 @@ const Pagination: React.FC<PaginationProps> = ({
       </Text>
       
       <View style={styles.paginationContainer}>
-        {/* Botón Anterior */}
         <TouchableOpacity
           style={[
             styles.pageButton,
@@ -86,7 +80,6 @@ const Pagination: React.FC<PaginationProps> = ({
           </Text>
         </TouchableOpacity>
 
-        {/* Números de página */}
         {getPageNumbers().map((page, index) => (
           <React.Fragment key={index}>
             {page === -1 ? (
@@ -110,7 +103,6 @@ const Pagination: React.FC<PaginationProps> = ({
           </React.Fragment>
         ))}
 
-        {/* Botón Siguiente */}
         <TouchableOpacity
           style={[
             styles.pageButton,

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { View, FlatList, StyleSheet, ActivityIndicator, Modal } from 'react-native';
 import { useAuthState } from '../hooks/useAuth';
 import { getPagedMuseums } from '@services/museum/getListarMuseums';
@@ -17,9 +17,12 @@ import { useToast } from '@hooks/useToast';
 import { useSearch } from '@hooks/useSearch';
 import { MuseumResponse } from '@interfaces/museum/MuseumResponse';
 import { PagedResponse } from '@interfaces/common/PagedResponse';
+import { useAuthContext } from '@contexts/AuthContext';
+import { getRoleBasedOnToken } from '@utils/getRoleBasedOnToken';
 
 export default function MuseumScreen() {
-  const { role } = useAuthState();
+  const { session } = useAuthContext();
+  const role = useMemo(() => (session ? getRoleBasedOnToken(session) : null), [session]);
   const navigation = useNavigation();
   const [museums, setMuseums] = useState<MuseumResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,34 +33,87 @@ export default function MuseumScreen() {
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [totalElements, setTotalElements] = useState(0);
+  const [allMuseums, setAllMuseums] = useState<MuseumResponse[]>([]);
+  const [allLoaded, setAllLoaded] = useState(false);
+  const [loadingAll, setLoadingAll] = useState(false);
   const pageSize = 6;
   const isInitialLoad = useRef(true);
   const { toast, showSuccess, showError, hideToast } = useToast();
-  const { filteredData: filteredMuseums, handleSearch, clearSearch, searchQuery } = useSearch(
-    museums,
-    ['name', 'description']
-  );
+  const [searchQueryForHook, setSearchQueryForHook] = useState('');
+
+  const dataSource = useMemo(() => {
+    return searchQueryForHook ? (allLoaded ? allMuseums : museums) : museums;
+  }, [searchQueryForHook, allLoaded, allMuseums, museums]);
+
+  const searchKeys = useMemo(() => ['name', 'description'] as const, []);
+
+  const {
+    filteredData: filteredMuseums,
+    handleSearch: _handleSearch,
+    clearSearch,
+    searchQuery,
+    isSearching,
+  } = useSearch<MuseumResponse>(dataSource, searchKeys as unknown as string[]);
+
+  const showErrorRef = useRef(showError);
+  useEffect(() => { showErrorRef.current = showError; }, [showError]);
 
   const loadMuseums = useCallback(async (page: number = 0) => {
     setLoading(true);
     try {
-      const data: PagedResponse<MuseumResponse> = await getPagedMuseums(page, pageSize);
+      const data = await getPagedMuseums(page, pageSize);
       setMuseums(data.contents);
       setCurrentPage(data.page);
       setTotalPages(data.totalPages);
       setTotalElements(data.totalElements);
-    } catch (e) {
-      showError('No se pudieron cargar los museos');
+    } catch {
+      showErrorRef.current('No se pudieron cargar los museos');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  }, [showError]);
+  }, []);
+
+    const loadAllMuseumsOnce = useCallback(async () => {
+    if (allLoaded || loadingAll) return;
+    try {
+      setLoadingAll(true);
+
+      let first = await getPagedMuseums(0, pageSize);
+      const pages = first.totalPages;
+      let all: MuseumResponse[] = first.contents;
+
+      for (let p = 1; p < pages; p++) {
+        const resp = await getPagedMuseums(p, pageSize);
+        all = all.concat(resp.contents);
+      }
+
+      setAllMuseums(all);
+      setAllLoaded(true);
+    } catch {
+      showError('No se pudo cargar el catálogo completo para búsqueda');
+    } finally {
+      setLoadingAll(false);
+    }
+  }, [allLoaded, loadingAll, pageSize, showError]);
+
+  const handleSearch = useCallback((q: string) => {
+    setSearchQueryForHook(prev => {
+      if (prev === q) return prev; 
+      return q;
+    });
+
+    if (q && !allLoaded && !loadingAll) {
+      loadAllMuseumsOnce();
+    }
+    _handleSearch(q);
+  }, [_handleSearch, allLoaded, loadingAll, loadAllMuseumsOnce]);
 
   useEffect(() => {
     if (isInitialLoad.current) {
       isInitialLoad.current = false;
-      loadMuseums(0);
+      loadMuseums(0); 
     }
-  }, [loadMuseums]);
+  }, []); 
 
   const handleSubmitMuseum = async (data: any) => {
     setFormLoading(true);

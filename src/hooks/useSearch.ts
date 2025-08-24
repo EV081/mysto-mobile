@@ -1,68 +1,37 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-export const useSearch = <T>(
+type Keys = string[];
+
+export function useSearch<T extends Record<string, any>>(
   data: T[],
-  searchFields: (keyof T)[],
-  debounceMs: number = 300
-) => {
+  keys: Keys
+) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [filteredData, setFilteredData] = useState<T[]>(data);
 
-  // Debounce effect
-  const debouncedSetQuery = useCallback(() => {
-    const timer = setTimeout(() => {
-      setDebouncedQuery(searchQuery);
-    }, debounceMs);
+  const norm = (v: any) =>
+    (v ?? '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-    return () => clearTimeout(timer);
-  }, [searchQuery, debounceMs]);
-
-  // Actualizar query y aplicar debounce
-  const handleSearch = useCallback((query: string) => {
-    setSearchQuery(query);
-    debouncedSetQuery();
-  }, [debouncedSetQuery]);
-
-  // Limpiar búsqueda
-  const clearSearch = useCallback(() => {
-    setSearchQuery('');
-    setDebouncedQuery('');
-  }, []);
-
-  // Filtrar datos basado en la query
-  const filteredData = useMemo(() => {
-    if (!debouncedQuery.trim()) {
-      return data;
+  useEffect(() => {
+    if (!searchQuery) {
+      setFilteredData(data);
+      return;
     }
+    const q = norm(searchQuery);
+    const next = data.filter((item) =>
+      keys.some((k) => norm(item[k]).includes(q))
+    );
+    setFilteredData(next);
+  }, [data, searchQuery, keys]);
 
-    const query = debouncedQuery.toLowerCase();
-    return data.filter(item => {
-      return searchFields.some(field => {
-        const value = item[field];
-        if (typeof value === 'string') {
-          return value.toLowerCase().includes(query);
-        }
-        if (typeof value === 'number') {
-          return value.toString().includes(query);
-        }
-        return false;
-      });
-    });
-  }, [data, debouncedQuery, searchFields]);
-
-  // Verificar si hay resultados
-  const hasResults = filteredData.length > 0;
-  const hasQuery = debouncedQuery.trim().length > 0;
-  const resultCount = filteredData.length;
+  const handleSearch = (q: string) => setSearchQuery(q);
+  const clearSearch = () => setSearchQuery('');
 
   return {
-    searchQuery,
-    debouncedQuery,
     filteredData,
+    searchQuery,
     handleSearch,
     clearSearch,
-    hasResults,
-    hasQuery,
-    resultCount
+    isSearching: !!searchQuery,
   };
-}; 
+}
