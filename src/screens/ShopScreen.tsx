@@ -25,6 +25,12 @@ export default function ShopScreen() {
     const [totalPages, setTotalPages] = useState(0);
     const [totalElements, setTotalElements] = useState(0);
     const pageSize = 4;
+
+    const [currentPage2, setCurrentPage2] = useState(0);
+    const [totalPages2, setTotalPages2] = useState(0);
+    const [totalElements2, setTotalElements2] = useState(0);
+    const pageSize2 = 4;
+
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [showCosmetics, setShowCosmetics] = useState(false);
     const [lockedCosmetics, setLockedCosmetics] = useState<Cosmetic[]>([]);
@@ -32,6 +38,24 @@ export default function ShopScreen() {
     const isInitialLoad = useRef(true);
     const [userCoins, setUserCoins] = useState<number>(0);
     const [loadingCoins, setLoadingCoins] = useState(false);
+
+    const loadCosmetics = useCallback(async (page: number = 0) => {
+        try {
+            console.log(`Loading cosmetics for page: ${page}`);
+            setLoadingCosmetics(true);
+            const data = await getLockedCosmetics(page, pageSize2);
+            console.log(`Loaded ${data.contents.length} cosmetics, total pages: ${data.totalPages}`);
+            setLockedCosmetics(data.contents);
+            setCurrentPage2(data.page);
+            setTotalPages2(data.totalPages);
+            setTotalElements2(data.totalElements);
+        } catch (e: any) {
+            console.error('Error loading cosmetics:', e);
+            showError(e?.response?.data?.message || "No se pudieron cargar los cosméticos");
+        } finally {
+            setLoadingCosmetics(false);
+        }
+    }, [showError, pageSize2]);
 
     const loadArticles = useCallback(async (page: number = 0) => {
     try {
@@ -50,10 +74,18 @@ export default function ShopScreen() {
     }
     }, [pageSize, showError]);
 
+
+
+
     const handlePageChange = useCallback((page: number) => {
     setCurrentPage(page);
     loadArticles(page);
     }, [loadArticles]);
+    
+    const handlePageChangeCosmetics = useCallback((page: number) => {
+        setCurrentPage2(page);
+        loadCosmetics(page);
+    }, [loadCosmetics]);
 
     const handleRefresh = useCallback(() => {
     setIsRefreshing(true);
@@ -67,23 +99,14 @@ export default function ShopScreen() {
     }
     }, [loadArticles]);
 
-    const fetchLockedCosmetics = useCallback(async () => {
-        try {
-            setLoadingCosmetics(true);
-            const data = await getLockedCosmetics();
-            setLockedCosmetics(data);
-        } catch (e) {
-            showError('No se pudieron cargar los cosméticos');
-        } finally {
-            setLoadingCosmetics(false);
-        }
-    }, [showError]);
-
     useEffect(() => {
         if (showCosmetics) {
-            fetchLockedCosmetics();
+            loadCosmetics(0);
+        } else {
+            // Reset cosmetics loading state when switching to articles
+            setLoadingCosmetics(false);
         }
-    }, [showCosmetics, fetchLockedCosmetics]);
+    }, [showCosmetics, loadCosmetics]);
 
     const fetchUserCoins = useCallback(async () => {
         setLoadingCoins(true);
@@ -105,7 +128,7 @@ export default function ShopScreen() {
         try {
             await buyCosmetic(cosmetic.id);
             Alert.alert("Éxito", "¡Cosmético desbloqueado!");
-            fetchLockedCosmetics();
+            loadCosmetics(currentPage2);
             fetchUserCoins();
         } catch (error: any) {
             let errorMessage = "No se pudo comprar el cosmético";
@@ -142,7 +165,11 @@ export default function ShopScreen() {
                             styles.switchBtn,
                             !showCosmetics && styles.switchBtnActive
                         ]}
-                        onPress={() => setShowCosmetics(false)}
+                        onPress={() => {
+                            setShowCosmetics(false);
+                            // Reset cosmetics pagination when switching to articles
+                            setCurrentPage2(0);
+                        }}
                     >
                         <Text style={[
                             styles.switchBtnText,
@@ -154,7 +181,11 @@ export default function ShopScreen() {
                             styles.switchBtn,
                             showCosmetics && styles.switchBtnActive
                         ]}
-                        onPress={() => setShowCosmetics(true)}
+                        onPress={() => {
+                            setShowCosmetics(true);
+                            // Reset articles pagination when switching to cosmetics
+                            setCurrentPage(0);
+                        }}
                     >
                         <Text style={[
                             styles.switchBtnText,
@@ -178,26 +209,39 @@ export default function ShopScreen() {
                 ) : lockedCosmetics.length === 0 ? (
                     <Text style={styles.empty}>¡Ya tienes todos los cosméticos desbloqueados!</Text>
                 ) : (
-                    <FlatList
-                        data={lockedCosmetics}
-                        keyExtractor={(item) => item.id.toString()}
-                        renderItem={renderCosmeticItem}
-                        contentContainerStyle={styles.shopListContent}
-                        ListEmptyComponent={<Text style={styles.empty}>No hay cosméticos disponibles.</Text>}
-                        showsVerticalScrollIndicator={false}
-                        numColumns={2}
-                    />
+                    <>
+                        <FlatList
+                            key="cosmetics-list"
+                            data={lockedCosmetics}
+                            keyExtractor={(item) => item.id.toString()}
+                            renderItem={renderCosmeticItem}
+                            contentContainerStyle={styles.shopListContent}
+                            ListEmptyComponent={<Text style={styles.empty}>No hay cosméticos disponibles.</Text>}
+                            showsVerticalScrollIndicator={false}
+                            numColumns={2}
+                        />
+                        {(!searchQuery && lockedCosmetics.length > 0) && (
+                            <Pagination
+                                currentPage={currentPage2}
+                                totalPages={totalPages2}
+                                onPageChange={handlePageChangeCosmetics}
+                                totalElements={totalElements2}
+                                pageSize={pageSize2}
+                            />
+                        )}
+                    </>
                 )
             ) : (
                 <>
                     <FlatList
+                        key="articles-list"
                         data={articleItems}
                         keyExtractor={(item) => item.id.toString()}
                         renderItem={renderArticleItem}
                         contentContainerStyle={styles.listContent}
                         ListEmptyComponent={!isLoading ? <Text style={styles.empty}>No hay artículos disponibles.</Text> : null}
                         refreshing={isRefreshing}
-                        onRefresh={loadArticles}
+                        onRefresh={handleRefresh}
                         showsVerticalScrollIndicator={false}
                     />
                     {!searchQuery && articleItems.length > 0 && (
