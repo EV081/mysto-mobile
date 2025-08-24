@@ -25,6 +25,11 @@ type Props = {
 
   /** Ubicación de la tarjeta: 'top' | 'bottom' */
   placement?: 'top' | 'bottom';
+
+  /** Ruta en el mapa (toggle) */
+  routeActive?: boolean;
+  routeDisabled?: boolean; // cuando no hay userLocation
+  onToggleRoute?: () => void;
 };
 
 const openExternalDirections = async (dest: LatLng, origin?: LatLng | null) => {
@@ -32,10 +37,10 @@ const openExternalDirections = async (dest: LatLng, origin?: LatLng | null) => {
     const base = 'https://www.google.com/maps/dir/?api=1';
     const destination = `destination=${dest.latitude},${dest.longitude}`;
     const originPart = origin ? `&origin=${origin.latitude},${origin.longitude}` : '';
-    const url = `${base}&${destination}${originPart}&travelmode=driving`;
+    const url = `${base}&${destination}${originPart}&travelmode=walking`;
 
     if (Platform.OS === 'ios') {
-      const appleUrl = `maps://?daddr=${dest.latitude},${dest.longitude}${origin ? `&saddr=${origin.latitude},${origin.longitude}` : ''}`;
+      const appleUrl = `maps://?daddr=${dest.latitude},${dest.longitude}${origin ? `&saddr=${origin.latitude},${origin.longitude}` : ''}&dirflg=w`;
       const can = await Linking.canOpenURL('maps://');
       if (can) return Linking.openURL(appleUrl);
     }
@@ -51,6 +56,9 @@ function MuseumInfoCard({
   infoScreenName = 'MuseumforOneScreen',
   adventureScreenName = 'Aventura',
   placement = 'bottom',
+  routeActive = false,
+  routeDisabled = false,
+  onToggleRoute,
 }: Props) {
   const navigation = useNavigation<any>();
 
@@ -105,16 +113,46 @@ function MuseumInfoCard({
           </Pressable>
         </View>
 
-        {/* Botones SOLO con íconos (3 botones) */}
+        {/* Botones SOLO con íconos */}
         <View style={styles.actions}>
-          <Pressable style={styles.iconBtn} onPress={goDirections} android_ripple={{ color: 'rgba(255,255,255,0.15)', borderless: true }}>
+          {/* Abrir Maps externo */}
+          <Pressable
+            style={styles.iconBtn}
+            onPress={goDirections}
+            android_ripple={{ color: 'rgba(255,255,255,0.15)', borderless: true }}
+          >
             <Ionicons name="navigate" size={22} color="#fff" />
           </Pressable>
-          <Pressable style={styles.iconBtn} onPress={goInfo} android_ripple={{ color: 'rgba(255,255,255,0.15)', borderless: true }}>
+
+          {/* Info */}
+          <Pressable
+            style={styles.iconBtn}
+            onPress={goInfo}
+            android_ripple={{ color: 'rgba(255,255,255,0.15)', borderless: true }}
+          >
             <Ionicons name="information-circle" size={22} color="#fff" />
           </Pressable>
-          <Pressable style={styles.iconBtn} onPress={goAdventure} android_ripple={{ color: 'rgba(255,255,255,0.15)', borderless: true }}>
+
+          {/* Aventura */}
+          <Pressable
+            style={styles.iconBtn}
+            onPress={goAdventure}
+            android_ripple={{ color: 'rgba(255,255,255,0.15)', borderless: true }}
+          >
             <MaterialCommunityIcons name="rocket-launch" size={22} color="#fff" />
+          </Pressable>
+
+          {/* RUTA EN EL MAPA (toggle) */}
+          <Pressable
+            style={[styles.iconBtn, routeDisabled && { opacity: 0.4 }]}
+            onPress={routeDisabled ? undefined : onToggleRoute}
+            android_ripple={{ color: 'rgba(255,255,255,0.15)', borderless: true }}
+          >
+            <MaterialCommunityIcons
+              name="routes"
+              size={22}
+              color={routeActive ? '#4caf50' : '#fff'}
+            />
           </Pressable>
         </View>
       </View>
@@ -131,7 +169,7 @@ const styles = StyleSheet.create({
     right: 12,
   },
   card: {
-    backgroundColor: '#000', // fondo negro
+    backgroundColor: '#000',
     borderRadius: 16,
     padding: 14,
     shadowColor: '#000',
@@ -146,11 +184,11 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 8,
   },
-  title: { flex: 1, fontSize: 16, fontWeight: '700', color: '#fff' }, // texto claro
+  title: { flex: 1, fontSize: 16, fontWeight: '700', color: '#fff' },
   closeBtn: {
     width: 28, height: 28, borderRadius: 14,
     alignItems: 'center', justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.12)', // contraste en negro
+    backgroundColor: 'rgba(255,255,255,0.12)',
   },
   actions: {
     flexDirection: 'row',
@@ -162,6 +200,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.06)', // leve contraste
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
 });

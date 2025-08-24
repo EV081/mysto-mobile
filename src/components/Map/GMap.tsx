@@ -3,27 +3,72 @@ import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native
 import { AppleMaps, GoogleMaps, useLocationPermissions } from 'expo-maps';
 import type { AppleMapsMarker } from 'expo-maps/build/apple/AppleMaps.types';
 import type { GoogleMapsMarker } from 'expo-maps/build/google/GoogleMaps.types';
-import { AppleMapsMapType } from 'expo-maps/build/apple/AppleMaps.types';
+import { AppleMapsMapType, AppleMapsContourStyle } from 'expo-maps/build/apple/AppleMaps.types';
 import { GoogleMapsColorScheme, GoogleMapsMapType } from 'expo-maps/build/google/GoogleMaps.types';
 import * as Location from 'expo-location';
 import { useImage } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
-import MuseumInfoCard, { MuseumLite } from '@components/Map/MuseumInfoCard';
 
+import MuseumInfoCard, { MuseumLite } from '@components/Map/MuseumInfoCard';
+import { getDirections } from '@components/Map/getDirections';
+
+// Services & types del backend
 import { getPagedMuseums } from '@services/museum/getListarMuseums';
 import type { MuseumResponse } from '@interfaces/museum/MuseumResponse';
 
+// ===== Helpers y constantes =====
 type LatLng = { latitude: number; longitude: number };
-const DEFAULT_COORD: LatLng = { latitude: -12.0464, longitude: -77.0428 };
+const DEFAULT_COORD: LatLng = { latitude: -12.0464, longitude: -77.0428 }; // Lima
 const DEFAULT_ZOOM = 13;
 
+// Iconos locales
 const MUSEUM_ICON_REQUIRE = require('../../../assets/museumx100.png');
 const CHARACTER_ICON_REQUIRE = require('../../../assets/character.png');
 
+// Convierte Coordinates a LatLng estricto
 const toLatLng = (c?: { latitude?: number; longitude?: number } | null): LatLng | null =>
   (c && typeof c.latitude === 'number' && typeof c.longitude === 'number')
     ? { latitude: c.latitude, longitude: c.longitude }
     : null;
+
+// --- NUEVO: encuadra la cámara a una lista de coordenadas (heurística de zoom) ---
+function fitCameraToCoords(
+  coords: LatLng[],
+  flyTo: (c: LatLng, zoom?: number) => void
+) {
+  if (!coords?.length) return;
+
+  let minLat = coords[0].latitude, maxLat = coords[0].latitude;
+  let minLng = coords[0].longitude, maxLng = coords[0].longitude;
+
+  for (const c of coords) {
+    if (c.latitude < minLat) minLat = c.latitude;
+    if (c.latitude > maxLat) maxLat = c.latitude;
+    if (c.longitude < minLng) minLng = c.longitude;
+    if (c.longitude > maxLng) maxLng = c.longitude;
+  }
+
+  const center = {
+    latitude: (minLat + maxLat) / 2,
+    longitude: (minLng + maxLng) / 2,
+  };
+
+  const latDelta = Math.max(0.000001, maxLat - minLat);
+  const lngDelta = Math.max(0.000001, maxLng - minLng);
+  const span = Math.max(latDelta, lngDelta);
+
+  const zoom =
+    span < 0.003 ? 18 :
+    span < 0.006 ? 17 :
+    span < 0.012 ? 16 :
+    span < 0.025 ? 15 :
+    span < 0.05  ? 14 :
+    span < 0.1   ? 13 :
+    span < 0.2   ? 12 :
+    span < 0.5   ? 11 : 10;
+
+  flyTo(center, zoom);
+}
 
 export default function GMap() {
   const [status, requestPerm] = useLocationPermissions();
@@ -34,13 +79,21 @@ export default function GMap() {
   const [followUser, setFollowUser] = useState<boolean>(true);
   const [selectedMuseum, setSelectedMuseum] = useState<MuseumLite | null>(null);
 
+  // Dirección en mapa
+  const [dirActive, setDirActive] = useState(false);
+  const [dirLoading, setDirLoading] = useState(false);
+  const [dirCoords, setDirCoords] = useState<LatLng[]>([]);
+
+  // Refs de imagen para expo-maps
   const museumIconRef = useImage(MUSEUM_ICON_REQUIRE);
   const characterIconRef = useImage(CHARACTER_ICON_REQUIRE);
 
+  // Refs de mapas
   const appleRef = useRef<AppleMaps.MapView>(null);
   const googleRef = useRef<GoogleMaps.MapView>(null);
   const watchRef = useRef<Location.LocationSubscription | null>(null);
 
+  // Cargar museos desde backend
   useEffect(() => {
     (async () => {
       try {
@@ -53,12 +106,14 @@ export default function GMap() {
     })();
   }, []);
 
+  // Pedir permisos (si no están concedidos)
   useEffect(() => {
     if (!status || status.status !== 'granted') {
       requestPerm().catch(() => {});
     }
   }, [status, requestPerm]);
 
+  // Posición/cámara inicial
   const cameraPosition = useMemo(
     () => ({ coordinates: { ...DEFAULT_COORD }, zoom: DEFAULT_ZOOM }),
     []
@@ -74,16 +129,20 @@ export default function GMap() {
     }
   }, []);
 
+  // Seguimiento de ubicación
   const startWatchingLocation = useCallback(async () => {
     const perm = await Location.getForegroundPermissionsAsync();
     if (perm.status !== 'granted') return;
+
     watchRef.current?.remove();
     watchRef.current = await Location.watchPositionAsync(
       { accuracy: Location.Accuracy.Balanced, distanceInterval: 5, timeInterval: 3000 },
       (loc) => {
-        const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+        const coords: LatLng = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
         setUserLocation(coords);
-        if (followUser) flyTo(coords, 18);
+        if (followUser) {
+          flyTo(coords, 18);
+        }
       }
     );
   }, [followUser, flyTo]);
@@ -93,9 +152,14 @@ export default function GMap() {
       const perm = await Location.getForegroundPermissionsAsync();
       if (perm.status === 'granted') await startWatchingLocation();
     })();
-    return () => { watchRef.current?.remove(); watchRef.current = null; };
+
+    return () => {
+      watchRef.current?.remove();
+      watchRef.current = null;
+    };
   }, [startWatchingLocation]);
 
+  // Centrar manual en usuario
   const updateUserLocation = useCallback(async () => {
     try {
       const { status: perm } = await Location.requestForegroundPermissionsAsync();
@@ -104,48 +168,56 @@ export default function GMap() {
         return;
       }
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+      const coords: LatLng = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
       setUserLocation(coords);
       setFollowUser(true);
       flyTo(coords, 18);
       await startWatchingLocation();
     } catch (err) {
-      console.warn('Ubicación', err);
+      console.warn('Error al obtener ubicación', err);
       Alert.alert('Ubicación', 'No se pudo obtener tu ubicación.');
     }
   }, [flyTo, startWatchingLocation]);
 
-  // iOS: SIN callout nativo -> no pasamos 'title'
+  // Marcadores de museos (iOS) sin callout nativo
   const baseMarkersApple: AppleMapsMarker[] = useMemo(
-    () => museos.map((m) => ({
-      id: String(m.id),
-      coordinates: { latitude: m.latitude, longitude: m.longitude },
-      tintColor: 'purple',
-      // ❌ title: m.name  (lo quitamos para evitar el callout por defecto)
-      // systemImage opcional si quisieras, pero no influye en callout
-      systemImage: 'building.columns',
-    })),
+    () =>
+      museos.map((m) => ({
+        id: String(m.id),
+        coordinates: { latitude: m.latitude, longitude: m.longitude },
+        tintColor: 'purple',
+        systemImage: 'building.columns',
+      })),
     [museos]
   );
 
+  // Marker del usuario en iOS como annotation con icono propio
   const appleAnnotations = useMemo(() => {
     if (!userLocation) return [];
-    return [{ id: '__userChar', title: 'Estás aquí', coordinates: userLocation, icon: characterIconRef ?? undefined }];
+    return [
+      {
+        id: '__userChar',
+        title: 'Estás aquí',
+        coordinates: userLocation,
+        icon: characterIconRef ?? undefined,
+      },
+    ];
   }, [userLocation, characterIconRef]);
 
   const markersApple: AppleMapsMarker[] = baseMarkersApple;
 
-  // Android: SIN callout nativo -> showCallout: false
+  // Marcadores de museos + usuario (Android) sin callout nativo
   const markersGoogle: GoogleMapsMarker[] = useMemo(() => {
     const base: GoogleMapsMarker[] = museos.map((m) => ({
       id: String(m.id),
-      title: m.name,            // no se muestra porque showCallout: false
+      title: m.name,
       snippet: m.description ?? 'Museo',
       coordinates: { latitude: m.latitude, longitude: m.longitude },
       icon: museumIconRef ?? undefined,
-      showCallout: false,       // 👈 evita la tarjeta nativa
+      showCallout: false,
       draggable: false,
     }));
+
     if (userLocation) {
       base.push({
         id: '__userChar',
@@ -158,6 +230,51 @@ export default function GMap() {
     }
     return base;
   }, [museos, museumIconRef, userLocation, characterIconRef]);
+
+  // Pedir y mostrar direcciones reales
+  const fetchDirections = useCallback(async () => {
+    if (!selectedMuseum || !userLocation) return;
+    setDirLoading(true);
+    try {
+      const res = await getDirections(
+        userLocation,
+        { latitude: selectedMuseum.latitude, longitude: selectedMuseum.longitude },
+        { mode: 'walking' }
+      );
+
+      const coords = res.coords ?? [];
+      setDirCoords(coords);
+      setDirActive(true);
+
+      // --- NUEVO: encuadrar la ruta completa ---
+      if (coords.length) {
+        fitCameraToCoords(coords, flyTo);
+      }
+    } catch (e: any) {
+      console.warn('Directions error', e?.message || e);
+      Alert.alert('Rutas', 'No se pudo obtener la ruta. Intenta de nuevo.');
+    } finally {
+      setDirLoading(false);
+    }
+  }, [selectedMuseum, userLocation, flyTo]);
+
+  const toggleDirections = useCallback(() => {
+    if (!userLocation || !selectedMuseum) return;
+    if (dirActive) {
+      setDirActive(false);
+      setDirCoords([]);
+    } else {
+      fetchDirections();
+    }
+  }, [dirActive, fetchDirections, selectedMuseum, userLocation]);
+
+  // Si cambias de museo mientras la ruta está activa, re-calcula
+  useEffect(() => {
+    if (dirActive && selectedMuseum && userLocation) {
+      fetchDirections();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMuseum?.id]);
 
   const Controls = () => (
     <View style={styles.controlsLeft}>
@@ -185,6 +302,14 @@ export default function GMap() {
     </View>
   );
 
+  const clearSelection = useCallback(() => {
+    setSelectedPOI(null);
+    setSelectedMuseum(null);
+    // Si quieres, también podrías limpiar la ruta al tocar el mapa.
+    // setDirActive(false);
+    // setDirCoords([]);
+  }, []);
+
   // ===== iOS =====
   if (Platform.OS === 'ios') {
     return (
@@ -193,25 +318,55 @@ export default function GMap() {
           ref={appleRef}
           style={StyleSheet.absoluteFill}
           cameraPosition={cameraPosition}
-          properties={{ mapType: AppleMapsMapType.STANDARD, isTrafficEnabled: false, selectionEnabled: true }}
-          uiSettings={{ compassEnabled: true, myLocationButtonEnabled: false, scaleBarEnabled: true, togglePitchEnabled: true }}
+          properties={{
+            mapType: AppleMapsMapType.STANDARD,
+            isTrafficEnabled: false,
+            selectionEnabled: true,
+            polylineTapThreshold: 40, // <-- facilita tocar la polilínea
+          }}
+          uiSettings={{
+            compassEnabled: true,
+            myLocationButtonEnabled: false,
+            scaleBarEnabled: true,
+            togglePitchEnabled: true,
+          }}
           markers={markersApple}
           annotations={appleAnnotations}
-          onMapClick={() => { setSelectedPOI(null); setSelectedMuseum(null); }}
+          polylines={
+            dirActive && dirCoords.length
+              ? [{
+                  id: 'route',
+                  color: 'dodgerblue',
+                  width: 8, // un poco más grueso para tocar mejor
+                  coordinates: dirCoords,
+                  contourStyle: AppleMapsContourStyle.GEODESIC,
+                }]
+              : []
+          }
+          onMapClick={clearSelection}
           onMarkerClick={(marker: any) => {
             setFollowUser(false);
             const c = toLatLng(marker?.coordinates);
             if (marker?.id === '__userChar') { if (c) flyTo(c, 17); return; }
             const found = museos.find(m => String(m.id) === String(marker?.id));
             if (found) {
-              setSelectedMuseum({ id: found.id, name: found.name, latitude: found.latitude, longitude: found.longitude, description: found.description });
+              setSelectedMuseum({
+                id: found.id,
+                name: found.name,
+                latitude: found.latitude,
+                longitude: found.longitude,
+                description: found.description,
+              });
             }
             if (c) flyTo(c, 17);
+          }}
+          // --- NUEVO: al tocar la polilínea, encuadra ---
+          onPolylineClick={() => {
+            if (dirCoords.length) fitCameraToCoords(dirCoords, flyTo);
           }}
           onCameraMove={() => {}}
         />
 
-        {/* Tarjeta ARRIBA */}
         <MuseumInfoCard
           placement="top"
           visible={!!selectedMuseum}
@@ -220,7 +375,9 @@ export default function GMap() {
           onClose={() => setSelectedMuseum(null)}
           infoScreenName="MuseumforOneScreen"
           adventureScreenName="Aventura"
-          aventureScreenName="AventureSceen"
+          routeActive={dirActive}
+          routeDisabled={!userLocation}
+          onToggleRoute={toggleDirections}
         />
 
         {/* Botón ubicación centrado */}
@@ -230,7 +387,11 @@ export default function GMap() {
 
         <Controls />
 
-        {!isReady && <View style={styles.loading}><Text style={{ color: '#fff' }}>Cargando mapa…</Text></View>}
+        {!isReady && (
+          <View style={styles.loading}>
+            <Text style={{ color: '#fff' }}>Cargando mapa…</Text>
+          </View>
+        )}
       </View>
     );
   }
@@ -264,10 +425,25 @@ export default function GMap() {
           compassEnabled: true,
         }}
         markers={markersGoogle}
+        polylines={
+          dirActive && dirCoords.length
+            ? [{
+                id: 'route',
+                color: 'dodgerblue',
+                width: 8, // más ancho para fácil tap
+                coordinates: dirCoords,
+                geodesic: true,
+              }]
+            : []
+        }
         onPOIClick={(e: any) => {
           setFollowUser(false);
           const c = toLatLng(e?.coordinates);
-          if (c) { setSelectedPOI({ name: e?.name ?? 'Lugar', coordinates: c }); flyTo(c, 17); }
+          if (c) {
+            const poi = { name: e?.name ?? 'Lugar', coordinates: c };
+            setSelectedPOI(poi);
+            flyTo(c, 17);
+          }
         }}
         onMarkerClick={(marker: any) => {
           setFollowUser(false);
@@ -275,17 +451,26 @@ export default function GMap() {
           if (marker?.id === '__userChar') { if (c) flyTo(c, 17); return; }
           const found = museos.find(m => String(m.id) === String(marker?.id));
           if (found) {
-            setSelectedMuseum({ id: found.id, name: found.name, latitude: found.latitude, longitude: found.longitude, description: found.description });
+            setSelectedMuseum({
+              id: found.id,
+              name: found.name,
+              latitude: found.latitude,
+              longitude: found.longitude,
+              description: found.description,
+            });
           }
           if (c) flyTo(c, 17);
         }}
+        // --- NUEVO: al tocar la polilínea, encuadra ---
+        onPolylineClick={() => {
+          if (dirCoords.length) fitCameraToCoords(dirCoords, flyTo);
+        }}
         onMapLoaded={onMapLoaded}
-        onMapClick={() => { setSelectedPOI(null); setSelectedMuseum(null); }}
+        onMapClick={clearSelection}
         onMapLongClick={() => {}}
         onCameraMove={() => {}}
       />
 
-      {/* Tarjeta ARRIBA */}
       <MuseumInfoCard
         placement="top"
         visible={!!selectedMuseum}
@@ -294,10 +479,12 @@ export default function GMap() {
         onClose={() => setSelectedMuseum(null)}
         infoScreenName="MuseumforOneScreen"
         adventureScreenName="Aventura"
-        aventureScreenName="AventureSceen"
+        routeActive={dirActive}
+        routeDisabled={!userLocation}
+        onToggleRoute={toggleDirections}
       />
 
-      {/* Chip del POI (si quieres mantenerlo) */}
+      {/* Chip informativo de POI (opcional) */}
       {selectedPOI && (
         <View style={styles.poiChip}>
           <Text style={styles.poiTxt}>📍 {selectedPOI.name}</Text>
@@ -311,7 +498,11 @@ export default function GMap() {
 
       <Controls />
 
-      {!isReady && <View style={styles.loading}><Text style={{ color: '#fff' }}>Cargando mapa…</Text></View>}
+      {!isReady && (
+        <View style={styles.loading}>
+          <Text style={{ color: '#fff' }}>Cargando mapa…</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -335,7 +526,7 @@ const styles = StyleSheet.create({
 
   poiChip: {
     position: 'absolute',
-    top: 70, // para no chocar con la tarjeta
+    top: 70,
     left: 16,
     right: 16,
     paddingVertical: 8,
