@@ -8,29 +8,22 @@ import { GoogleMapsColorScheme, GoogleMapsMapType } from 'expo-maps/build/google
 import * as Location from 'expo-location';
 import { useImage } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
+import MuseumInfoCard, { MuseumLite } from '@components/Map/MuseumInfoCard';
 
-// Services & types del backend
 import { getPagedMuseums } from '@services/museum/getListarMuseums';
 import type { MuseumResponse } from '@interfaces/museum/MuseumResponse';
 
-// ===== Helpers y constantes =====
 type LatLng = { latitude: number; longitude: number };
-const DEFAULT_COORD: LatLng = { latitude: -12.0464, longitude: -77.0428 }; // Lima
+const DEFAULT_COORD: LatLng = { latitude: -12.0464, longitude: -77.0428 };
 const DEFAULT_ZOOM = 13;
 
-// Iconos locales
 const MUSEUM_ICON_REQUIRE = require('../../../assets/museumx100.png');
 const CHARACTER_ICON_REQUIRE = require('../../../assets/character.png');
 
-// Convierte Coordinates (latitude? / longitude?) a LatLng estricto, o null si no es válido
-const toLatLng = (
-  c?: { latitude?: number; longitude?: number } | null
-): LatLng | null => {
-  if (c && typeof c.latitude === 'number' && typeof c.longitude === 'number') {
-    return { latitude: c.latitude, longitude: c.longitude };
-  }
-  return null;
-};
+const toLatLng = (c?: { latitude?: number; longitude?: number } | null): LatLng | null =>
+  (c && typeof c.latitude === 'number' && typeof c.longitude === 'number')
+    ? { latitude: c.latitude, longitude: c.longitude }
+    : null;
 
 export default function GMap() {
   const [status, requestPerm] = useLocationPermissions();
@@ -38,16 +31,16 @@ export default function GMap() {
   const [museos, setMuseos] = useState<MuseumResponse[]>([]);
   const [selectedPOI, setSelectedPOI] = useState<{ name: string; coordinates: LatLng } | null>(null);
   const [userLocation, setUserLocation] = useState<LatLng | null>(null);
+  const [followUser, setFollowUser] = useState<boolean>(true);
+  const [selectedMuseum, setSelectedMuseum] = useState<MuseumLite | null>(null);
 
-  // Refs de imagen (SharedRefType<'image'> que espera expo-maps)
   const museumIconRef = useImage(MUSEUM_ICON_REQUIRE);
   const characterIconRef = useImage(CHARACTER_ICON_REQUIRE);
 
-  // Refs de mapas
   const appleRef = useRef<AppleMaps.MapView>(null);
   const googleRef = useRef<GoogleMaps.MapView>(null);
+  const watchRef = useRef<Location.LocationSubscription | null>(null);
 
-  // Cargar museos desde backend
   useEffect(() => {
     (async () => {
       try {
@@ -60,88 +53,49 @@ export default function GMap() {
     })();
   }, []);
 
-  // Pedir permisos (si no están concedidos)
   useEffect(() => {
     if (!status || status.status !== 'granted') {
       requestPerm().catch(() => {});
     }
   }, [status, requestPerm]);
 
-  // Posición inicial (común)
   const cameraPosition = useMemo(
-    () => ({
-      coordinates: { ...DEFAULT_COORD },
-      zoom: DEFAULT_ZOOM,
-    }),
+    () => ({ coordinates: { ...DEFAULT_COORD }, zoom: DEFAULT_ZOOM }),
     []
   );
-
-  // Marcadores de museos (iOS)
-  const baseMarkersApple: AppleMapsMarker[] = useMemo(
-    () =>
-      museos.map((m) => ({
-        id: String(m.id),
-        title: m.name,
-        coordinates: { latitude: m.latitude, longitude: m.longitude },
-        systemImage: 'building.columns', // SF Symbol estilo museo
-        tintColor: 'purple',
-      })),
-    [museos]
-  );
-
-  // Marcador del usuario en iOS (con imagen character.png) vía annotations
-  const appleAnnotations = useMemo(() => {
-    if (!userLocation) return [];
-    return [
-      {
-        id: '__userChar',
-        title: 'Estás aquí',
-        coordinates: userLocation,
-        icon: characterIconRef ?? undefined, // imagen personalizada en iOS
-      },
-    ];
-  }, [userLocation, characterIconRef]);
-
-  // Si además quieres conservar un pin azul nativo en iOS, podrías
-  // agregarlo a markersApple, pero aquí usamos solo la imagen personalizada.
-  const markersApple: AppleMapsMarker[] = baseMarkersApple;
-
-  // Marcadores de museos + personaje del usuario (Android)
-  const markersGoogle: GoogleMapsMarker[] = useMemo(() => {
-    const base: GoogleMapsMarker[] = museos.map((m) => ({
-      id: String(m.id),
-      title: m.name,
-      snippet: m.description ?? 'Museo',
-      coordinates: { latitude: m.latitude, longitude: m.longitude },
-      icon: museumIconRef ?? undefined, // icono de museo
-      showCallout: true,
-      draggable: false,
-    }));
-
-    if (userLocation) {
-      base.push({
-        id: '__userChar',
-        title: 'Estás aquí',
-        coordinates: userLocation,
-        icon: characterIconRef ?? undefined, // icono character.png
-        showCallout: false,
-        draggable: false,
-      });
-    }
-    return base;
-  }, [museos, museumIconRef, userLocation, characterIconRef]);
 
   const onMapLoaded = useCallback(() => setIsReady(true), []);
 
   const flyTo = useCallback((coords: LatLng, zoom = 16) => {
     if (Platform.OS === 'ios') {
       appleRef.current?.setCameraPosition({ coordinates: coords, zoom });
-    } else if (Platform.OS === 'android') {
+    } else {
       googleRef.current?.setCameraPosition({ coordinates: coords, zoom, duration: 600 });
     }
   }, []);
 
-  // Obtener/centrar ubicación del usuario (botón flotante)
+  const startWatchingLocation = useCallback(async () => {
+    const perm = await Location.getForegroundPermissionsAsync();
+    if (perm.status !== 'granted') return;
+    watchRef.current?.remove();
+    watchRef.current = await Location.watchPositionAsync(
+      { accuracy: Location.Accuracy.Balanced, distanceInterval: 5, timeInterval: 3000 },
+      (loc) => {
+        const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+        setUserLocation(coords);
+        if (followUser) flyTo(coords, 18);
+      }
+    );
+  }, [followUser, flyTo]);
+
+  useEffect(() => {
+    (async () => {
+      const perm = await Location.getForegroundPermissionsAsync();
+      if (perm.status === 'granted') await startWatchingLocation();
+    })();
+    return () => { watchRef.current?.remove(); watchRef.current = null; };
+  }, [startWatchingLocation]);
+
   const updateUserLocation = useCallback(async () => {
     try {
       const { status: perm } = await Location.requestForegroundPermissionsAsync();
@@ -150,22 +104,67 @@ export default function GMap() {
         return;
       }
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      const coords: LatLng = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+      const coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
       setUserLocation(coords);
-      flyTo(coords, 18); // zoom más cercano
+      setFollowUser(true);
+      flyTo(coords, 18);
+      await startWatchingLocation();
     } catch (err) {
-      console.warn('Error al obtener ubicación', err);
+      console.warn('Ubicación', err);
       Alert.alert('Ubicación', 'No se pudo obtener tu ubicación.');
     }
-  }, [flyTo]);
+  }, [flyTo, startWatchingLocation]);
 
-  // Controles flotantes: 3D (gestos) y POI seleccionado
+  // iOS: SIN callout nativo -> no pasamos 'title'
+  const baseMarkersApple: AppleMapsMarker[] = useMemo(
+    () => museos.map((m) => ({
+      id: String(m.id),
+      coordinates: { latitude: m.latitude, longitude: m.longitude },
+      tintColor: 'purple',
+      // ❌ title: m.name  (lo quitamos para evitar el callout por defecto)
+      // systemImage opcional si quisieras, pero no influye en callout
+      systemImage: 'building.columns',
+    })),
+    [museos]
+  );
+
+  const appleAnnotations = useMemo(() => {
+    if (!userLocation) return [];
+    return [{ id: '__userChar', title: 'Estás aquí', coordinates: userLocation, icon: characterIconRef ?? undefined }];
+  }, [userLocation, characterIconRef]);
+
+  const markersApple: AppleMapsMarker[] = baseMarkersApple;
+
+  // Android: SIN callout nativo -> showCallout: false
+  const markersGoogle: GoogleMapsMarker[] = useMemo(() => {
+    const base: GoogleMapsMarker[] = museos.map((m) => ({
+      id: String(m.id),
+      title: m.name,            // no se muestra porque showCallout: false
+      snippet: m.description ?? 'Museo',
+      coordinates: { latitude: m.latitude, longitude: m.longitude },
+      icon: museumIconRef ?? undefined,
+      showCallout: false,       // 👈 evita la tarjeta nativa
+      draggable: false,
+    }));
+    if (userLocation) {
+      base.push({
+        id: '__userChar',
+        title: 'Estás aquí',
+        coordinates: userLocation,
+        icon: characterIconRef ?? undefined,
+        showCallout: false,
+        draggable: false,
+      });
+    }
+    return base;
+  }, [museos, museumIconRef, userLocation, characterIconRef]);
+
   const Controls = () => (
-    <View style={styles.controls}>
+    <View style={styles.controlsLeft}>
       <Pressable
         style={styles.btn}
         onPress={() => {
-          flyTo(DEFAULT_COORD, 17);
+          setFollowUser(false);
           Alert.alert('3D', 'Usa dos dedos para inclinar (tilt) y rota para vista 3D.');
         }}
       >
@@ -173,14 +172,20 @@ export default function GMap() {
       </Pressable>
 
       {selectedPOI && (
-        <Pressable style={styles.btn} onPress={() => flyTo(selectedPOI.coordinates, 17)}>
+        <Pressable
+          style={styles.btn}
+          onPress={() => {
+            setFollowUser(false);
+            flyTo(selectedPOI.coordinates, 17);
+          }}
+        >
           <Text style={styles.btnTxt}>POI</Text>
         </Pressable>
       )}
     </View>
   );
 
-  // ===== iOS (Apple Maps) =====
+  // ===== iOS =====
   if (Platform.OS === 'ios') {
     return (
       <View style={styles.container}>
@@ -188,127 +193,135 @@ export default function GMap() {
           ref={appleRef}
           style={StyleSheet.absoluteFill}
           cameraPosition={cameraPosition}
-          properties={{
-            mapType: AppleMapsMapType.STANDARD,
-            isTrafficEnabled: false, // sin tráfico
-            selectionEnabled: true,
-          }}
-          uiSettings={{
-            compassEnabled: true,
-            myLocationButtonEnabled: false,
-            scaleBarEnabled: true,
-            togglePitchEnabled: true, // tilt (3D) por gestos
-          }}
+          properties={{ mapType: AppleMapsMapType.STANDARD, isTrafficEnabled: false, selectionEnabled: true }}
+          uiSettings={{ compassEnabled: true, myLocationButtonEnabled: false, scaleBarEnabled: true, togglePitchEnabled: true }}
           markers={markersApple}
-          // mostramos la imagen del usuario como annotation
           annotations={appleAnnotations}
-          onMapClick={() => {
-            setSelectedPOI(null);
-          }}
+          onMapClick={() => { setSelectedPOI(null); setSelectedMuseum(null); }}
           onMarkerClick={(marker: any) => {
+            setFollowUser(false);
             const c = toLatLng(marker?.coordinates);
-            if (c) flyTo(c, 17);
-          }}
-          onCameraMove={() => {}}
-        />
-
-        {/* Botón flotante de ubicación (centrado) */}
-        <Pressable style={styles.locBtnCenter} onPress={updateUserLocation}>
-          {/* Pin clásico estilo gota */}
-          <MaterialIcons name="location-on" size={28} color="#d32f2f" />
-        </Pressable>
-
-        <Controls />
-
-        {!isReady && (
-          <View style={styles.loading}>
-            <Text style={{ color: '#fff' }}>Cargando mapa…</Text>
-          </View>
-        )}
-      </View>
-    );
-  }
-
-  // ===== Android (Google Maps) =====
-  if (Platform.OS === 'android') {
-    return (
-      <View style={styles.container}>
-        <GoogleMaps.View
-          ref={googleRef}
-          style={StyleSheet.absoluteFill}
-          cameraPosition={cameraPosition}
-          colorScheme={GoogleMapsColorScheme.FOLLOW_SYSTEM}
-          properties={{
-            isTrafficEnabled: false, // sin tráfico
-            isIndoorEnabled: true,
-            isBuildingEnabled: true, // edificios 3D
-            selectionEnabled: true,
-            isMyLocationEnabled: status?.status === 'granted', // punto azul nativo
-            mapType: GoogleMapsMapType.NORMAL,
-          }}
-          uiSettings={{
-            zoomControlsEnabled: true,
-            myLocationButtonEnabled: false, // usamos nuestro botón
-            rotationGesturesEnabled: true,
-            tiltGesturesEnabled: true, // gestos 3D
-            scrollGesturesEnabled: true,
-            scrollGesturesEnabledDuringRotateOrZoom: true,
-            mapToolbarEnabled: true,
-            scaleBarEnabled: true,
-            indoorLevelPickerEnabled: true,
-            compassEnabled: true,
-          }}
-          markers={markersGoogle}
-          onPOIClick={(e: any) => {
-            const c = toLatLng(e?.coordinates);
-            if (c) {
-              const poi = { name: e?.name ?? 'Lugar', coordinates: c };
-              setSelectedPOI(poi);
-              flyTo(c, 17);
+            if (marker?.id === '__userChar') { if (c) flyTo(c, 17); return; }
+            const found = museos.find(m => String(m.id) === String(marker?.id));
+            if (found) {
+              setSelectedMuseum({ id: found.id, name: found.name, latitude: found.latitude, longitude: found.longitude, description: found.description });
             }
-          }}
-          onMarkerClick={(marker: any) => {
-            const c = toLatLng(marker?.coordinates);
             if (c) flyTo(c, 17);
           }}
-          onMapLoaded={onMapLoaded}
-          onMapClick={() => setSelectedPOI(null)}
-          onMapLongClick={() => {}}
           onCameraMove={() => {}}
         />
 
-        {/* Chip informativo del POI seleccionado */}
-        {selectedPOI && (
-          <View style={styles.poiChip}>
-            <Text style={styles.poiTxt}>📍 {selectedPOI.name}</Text>
-          </View>
-        )}
+        {/* Tarjeta ARRIBA */}
+        <MuseumInfoCard
+          placement="top"
+          visible={!!selectedMuseum}
+          museum={selectedMuseum}
+          userLocation={userLocation}
+          onClose={() => setSelectedMuseum(null)}
+          infoScreenName="MuseumforOneScreen"
+          adventureScreenName="Aventura"
+          aventureScreenName="AventureSceen"
+        />
 
-        {/* Botón flotante de ubicación (centrado) */}
+        {/* Botón ubicación centrado */}
         <Pressable style={styles.locBtnCenter} onPress={updateUserLocation}>
           <MaterialIcons name="location-on" size={28} color="#d32f2f" />
         </Pressable>
 
         <Controls />
 
-        {!isReady && (
-          <View style={styles.loading}>
-            <Text style={{ color: '#fff' }}>Cargando mapa…</Text>
-          </View>
-        )}
+        {!isReady && <View style={styles.loading}><Text style={{ color: '#fff' }}>Cargando mapa…</Text></View>}
       </View>
     );
   }
 
-  return <Text>Maps are only available on Android and iOS</Text>;
+  // ===== Android =====
+  return (
+    <View style={styles.container}>
+      <GoogleMaps.View
+        ref={googleRef}
+        style={StyleSheet.absoluteFill}
+        cameraPosition={cameraPosition}
+        colorScheme={GoogleMapsColorScheme.FOLLOW_SYSTEM}
+        properties={{
+          isTrafficEnabled: false,
+          isIndoorEnabled: true,
+          isBuildingEnabled: true,
+          selectionEnabled: true,
+          isMyLocationEnabled: status?.status === 'granted' && !userLocation,
+          mapType: GoogleMapsMapType.NORMAL,
+        }}
+        uiSettings={{
+          zoomControlsEnabled: true,
+          myLocationButtonEnabled: false,
+          rotationGesturesEnabled: true,
+          tiltGesturesEnabled: true,
+          scrollGesturesEnabled: true,
+          scrollGesturesEnabledDuringRotateOrZoom: true,
+          mapToolbarEnabled: true,
+          scaleBarEnabled: true,
+          indoorLevelPickerEnabled: true,
+          compassEnabled: true,
+        }}
+        markers={markersGoogle}
+        onPOIClick={(e: any) => {
+          setFollowUser(false);
+          const c = toLatLng(e?.coordinates);
+          if (c) { setSelectedPOI({ name: e?.name ?? 'Lugar', coordinates: c }); flyTo(c, 17); }
+        }}
+        onMarkerClick={(marker: any) => {
+          setFollowUser(false);
+          const c = toLatLng(marker?.coordinates);
+          if (marker?.id === '__userChar') { if (c) flyTo(c, 17); return; }
+          const found = museos.find(m => String(m.id) === String(marker?.id));
+          if (found) {
+            setSelectedMuseum({ id: found.id, name: found.name, latitude: found.latitude, longitude: found.longitude, description: found.description });
+          }
+          if (c) flyTo(c, 17);
+        }}
+        onMapLoaded={onMapLoaded}
+        onMapClick={() => { setSelectedPOI(null); setSelectedMuseum(null); }}
+        onMapLongClick={() => {}}
+        onCameraMove={() => {}}
+      />
+
+      {/* Tarjeta ARRIBA */}
+      <MuseumInfoCard
+        placement="top"
+        visible={!!selectedMuseum}
+        museum={selectedMuseum}
+        userLocation={userLocation}
+        onClose={() => setSelectedMuseum(null)}
+        infoScreenName="MuseumforOneScreen"
+        adventureScreenName="Aventura"
+        aventureScreenName="AventureSceen"
+      />
+
+      {/* Chip del POI (si quieres mantenerlo) */}
+      {selectedPOI && (
+        <View style={styles.poiChip}>
+          <Text style={styles.poiTxt}>📍 {selectedPOI.name}</Text>
+        </View>
+      )}
+
+      {/* Botón ubicación centrado */}
+      <Pressable style={styles.locBtnCenter} onPress={updateUserLocation}>
+        <MaterialIcons name="location-on" size={28} color="#d32f2f" />
+      </Pressable>
+
+      <Controls />
+
+      {!isReady && <View style={styles.loading}><Text style={{ color: '#fff' }}>Cargando mapa…</Text></View>}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, borderRadius: 12, overflow: 'hidden' },
 
-  controls: {
+  controlsLeft: {
     position: 'absolute',
-    right: 12,
+    left: 12,
     bottom: 20,
     gap: 10,
   },
@@ -322,22 +335,21 @@ const styles = StyleSheet.create({
 
   poiChip: {
     position: 'absolute',
-    top: 16,
+    top: 70, // para no chocar con la tarjeta
     left: 16,
     right: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
     borderRadius: 12,
     backgroundColor: 'rgba(0,0,0,0.65)',
   },
   poiTxt: { color: '#fff', fontWeight: '600' },
 
-  // Botón de ubicación centrado (abajo al medio)
   locBtnCenter: {
     position: 'absolute',
     bottom: 24,
     left: '50%',
-    transform: [{ translateX: -24 }], // mitad de width
+    transform: [{ translateX: -24 }],
     backgroundColor: '#fff',
     borderRadius: 24,
     width: 48,
