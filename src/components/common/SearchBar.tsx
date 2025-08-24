@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
 import { COLORS } from '@constants/colors';
 
@@ -15,30 +15,29 @@ const SearchBar: React.FC<SearchBarProps> = ({
   onSearch,
   onClear,
   initialValue = '',
-  debounceMs = 300
+  debounceMs = 300,
 }) => {
   const [searchQuery, setSearchQuery] = useState(initialValue);
-  const [debouncedQuery, setDebouncedQuery] = useState(initialValue);
 
-  // Debounce effect para evitar llamadas innecesarias a la API
+  const onSearchRef = useRef(onSearch);
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedQuery(searchQuery);
+    onSearchRef.current = onSearch;
+  }, [onSearch]);
+
+  useEffect(() => {
+    setSearchQuery(initialValue);
+  }, [initialValue]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      onSearchRef.current(searchQuery);
     }, debounceMs);
-
-    return () => clearTimeout(timer);
+    return () => clearTimeout(t);
   }, [searchQuery, debounceMs]);
-
-  // Llamar a onSearch cuando cambie la query debounced
-  useEffect(() => {
-    onSearch(debouncedQuery);
-  }, [debouncedQuery, onSearch]);
 
   const handleClear = () => {
     setSearchQuery('');
-    if (onClear) {
-      onClear();
-    }
+    onClear?.();
   };
 
   return (
@@ -69,9 +68,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
 };
 
 const styles = StyleSheet.create({
-  container: {
-    marginBottom: 16,
-  },
+  container: { marginBottom: 16 },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -82,29 +79,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     elevation: 1,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 1,
-    },
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
   },
-  searchInput: {
-    flex: 1,
-    height: 44,
-    fontSize: 16,
-    color: COLORS.text,
-    paddingVertical: 0,
-  },
-  clearButton: {
-    padding: 8,
-    marginLeft: 8,
-  },
-  clearButtonText: {
-    fontSize: 16,
-    color: COLORS.text,
-    opacity: 0.6,
-  },
+  searchInput: { flex: 1, height: 44, fontSize: 16, color: COLORS.text, paddingVertical: 0 },
+  clearButton: { padding: 8, marginLeft: 8 },
+  clearButtonText: { fontSize: 16, color: COLORS.text, opacity: 0.6 },
 });
 
-export default SearchBar; 
+export default SearchBar;

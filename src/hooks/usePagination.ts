@@ -18,10 +18,10 @@ export const usePagination = (initialPageSize: number = 6) => {
 
   const updatePagination = useCallback((data: PagedResponse<any>) => {
     setPagination({
-      currentPage: data.paginaActual,
-      totalPages: data.totalPaginas,
-      totalElements: data.totalElementos,
-      pageSize: data.tamanoPagina
+  currentPage: data.page,
+  totalPages: data.totalPages,
+  totalElements: data.totalElements,
+  pageSize: data.size
     });
   }, []);
 
