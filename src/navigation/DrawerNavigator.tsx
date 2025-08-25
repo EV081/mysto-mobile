@@ -102,7 +102,7 @@ export default function DrawerNavigator() {
         }} 
       />
       <Drawer.Screen name= "Aventura" component={AventureScreen} options = {{title: 'Aventura'}} />
-      <Drawer.Screen name="Museum" component={MuseumScreen} options={{ title: 'Museos' }} />
+      <Drawer.Screen name="Museums" component={MuseumScreen} options={{ title: 'Museos' }} />
       <Drawer.Screen 
         name="MuseumforOneScreen" 
         component={MuseumforOneScreen} 
