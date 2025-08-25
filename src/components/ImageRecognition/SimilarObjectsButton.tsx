@@ -39,36 +39,9 @@ export const SimilarObjectsButton: React.FC<SimilarObjectsButtonProps> = ({
       
       const response = await getSimilarObjectbyId(objectId, topK);
       
-      console.log('Búsqueda de similares completada:', response);
-      onSimilarObjectsResult?.(response);
-      
-      // La respuesta siempre será un array directo
-      const similarCount = response.length;
-      const similarObjects = response;
-      
-      console.log('Objetos similares encontrados:', similarObjects);
-      
-      if (similarCount > 0) {
-        // Crear mensaje detallado con toda la información
-        const detailMessage = similarObjects.map((obj: SimilarObject, index: number) => 
-          `${index + 1}. 🎨 ${obj.name}\n` +
-          `📝 ${obj.description.length > 100 ? obj.description.substring(0, 100) + '...' : obj.description}\n` +
-          `🎯 Similitud: ${(obj.combined_score * 100).toFixed(1)}%\n` +
-          `🏷️ Tipo: ${obj.type}\n` +
-          `🆔 ID: ${obj.id}`
-        ).join('\n\n');
-        
-        Alert.alert(
-          'Objetos similares encontrados',
-          `Se encontraron ${similarCount} objeto(s) similar(es):\n\n${detailMessage}`,
-          [{ text: 'OK', style: 'default' }]
-        );
-      } else {
-        Alert.alert(
-          'Sin resultados',
-          'No se encontraron objetos similares'
-        );
-      }
+  console.log('Búsqueda de similares completada:', response);
+  // Pass results to parent for rendering; no alert UI here
+  onSimilarObjectsResult?.(response);
       
     } catch (error: any) {
       console.error('Error en búsqueda de objetos similares:', error);

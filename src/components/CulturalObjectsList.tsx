@@ -11,6 +11,8 @@ interface CulturalObjectsListProps {
   showActions?: boolean;
   isSearching?: boolean;
   searchQuery?: string;
+  /** Optional map of objectId -> similarity percentage (0-100) to show a badge */
+  similarityMap?: Record<number, number>;
 }
 
 export const CulturalObjectsList: React.FC<CulturalObjectsListProps> = ({
@@ -21,6 +23,7 @@ export const CulturalObjectsList: React.FC<CulturalObjectsListProps> = ({
   showActions = false,
   isSearching = false,
   searchQuery = '',
+  similarityMap,
 }) => {
   if (isSearching) {
     return (
@@ -54,6 +57,10 @@ export const CulturalObjectsList: React.FC<CulturalObjectsListProps> = ({
           <View style={{ flex: 1 }}>
             <Text style={styles.objectTitle} numberOfLines={3}>{item.name}</Text>
             <Text style={styles.objectDesc} numberOfLines={3}>{item.description}</Text>
+
+            {typeof similarityMap !== 'undefined' && similarityMap[item.id] != null && (
+              <Text style={styles.similarityText}>Similitud: {similarityMap[item.id].toFixed(1)}%</Text>
+            )}
 
             {showActions && onEditObject && onDeleteObject && (
               <View style={styles.objectActions}>
@@ -145,6 +152,12 @@ const styles = StyleSheet.create({
   searchLoadingText: {
     fontSize: 14,
     color: COLORS.text,
+  },
+  similarityText: {
+    marginTop: 8,
+    fontSize: 13,
+    color: COLORS.gray[600],
+    fontWeight: '600'
   },
   info: {
     fontSize: 14,

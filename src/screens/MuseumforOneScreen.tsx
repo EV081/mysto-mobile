@@ -75,9 +75,15 @@ export default function MuseumforOneScreen() {
     }
   }, [session]);
 
+  const fromScreen = route?.params?.fromScreen as string | undefined;
+
   const handleBackPress = useCallback(() => {
-    navigation.navigate('Museum'); 
-  }, [navigation]);
+    if (fromScreen === 'RedSocial') {
+      navigation.goBack();
+      return;
+    }
+    navigation.navigate('Museums');
+  }, [navigation, fromScreen]);
 
   const onDeleteMuseum = useCallback(async () => {
     const success = await handleDeleteMuseum();

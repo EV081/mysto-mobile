@@ -26,6 +26,7 @@ import { createReviewCulturalObject } from '@services/reviews/createReviewCultur
 import { ReviewResponseDto } from '@interfaces/reviews/ReviewResponse';
 import { useAuthState } from '../hooks/useAuth';
 import SimilarObjectsButton from '@components/ImageRecognition/SimilarObjectsButton';
+import { CulturalObjectsList } from '@components/CulturalObjectsList';
 import { COLORS } from '@constants/colors';
 
 type ObjectDetailRouteProp = RouteProp<{
@@ -70,6 +71,9 @@ export default function ObjectDetailScreen() {
   const [commentInput, setCommentInput] = useState('');
   const [rating, setRating] = useState(5);
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [similarObjects, setSimilarObjects] = useState<CulturalObjectResponse[]>([]);
+  const [similarityMap, setSimilarityMap] = useState<Record<number, number>>({});
+  const [loadingSimilar, setLoadingSimilar] = useState(false);
 
   const handleBackPress = () => {
     if (navigation.canGoBack()) {
@@ -413,14 +417,66 @@ export default function ObjectDetailScreen() {
                 objectId={albumItem.id}
                 objectName={objectDetail.name}
                 topK={3}
-                onSimilarObjectsResult={(results) => {
-                  console.log('Objetos similares:', results);
+                onSimilarObjectsResult={async (results) => {
+                  try {
+                    setLoadingSimilar(true);
+                    // results contain id and combined_score; fetch full object info for each id
+                    const fetchedObjects: CulturalObjectResponse[] = [];
+                    const simMap: Record<number, number> = {};
+
+                    for (const r of results) {
+                      try {
+                        const resp = await getCulturalObjectInfo(r.id);
+                        fetchedObjects.push(resp.data);
+                        simMap[r.id] = +(r.combined_score * 100);
+                      } catch (err) {
+                        console.warn('No se pudo obtener objeto similar con id', r.id, err);
+                      }
+                    }
+
+                    setSimilarObjects(fetchedObjects);
+                    setSimilarityMap(simMap);
+                  } finally {
+                    setLoadingSimilar(false);
+                  }
                 }}
                 onError={(error) => {
                   console.error('Error:', error);
                 }}
                 style={[styles.similarObjectsButton, { backgroundColor: COLORS.button.primary }]}
               />
+              {/* Render similar objects list if available */}
+              {loadingSimilar ? (
+                <View style={{ paddingVertical: 12 }}>
+                  <ActivityIndicator size="small" color={COLORS.primary} />
+                  <Text style={{ color: colors.textSecondary, marginTop: 8 }}>Cargando objetos similares...</Text>
+                </View>
+              ) : similarObjects.length > 0 ? (
+                <View style={{ marginTop: 12 }}>
+                  <Text style={[styles.sectionSubtitle, { color: colors.text }]}>
+                    Objetos similares encontrados
+                  </Text>
+                  <CulturalObjectsList
+                    objects={similarObjects}
+                    onObjectPress={(obj) => {
+                      // Navigate to the same ObjectDetail but preserve similarObjects state in this screen instance
+                      (navigation as any).push('ObjectDetail', {
+                        albumItem: {
+                          id: obj.id,
+                          name: obj.name,
+                          description: obj.description,
+                          type: obj.type,
+                          pictureUrls: obj.pictureUrls,
+                          isObtained: true,
+                        },
+                        culturalObject: obj,
+                        fromScreen: fromScreen || 'Home'
+                      });
+                    }}
+                    similarityMap={similarityMap}
+                  />
+                </View>
+              ) : null}
             </View>
           </Card>
           
