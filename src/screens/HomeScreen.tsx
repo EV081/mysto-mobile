@@ -1,295 +1,374 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, StyleSheet, useColorScheme, TextInput, Pressable } from 'react-native';
+import { View, Text, StyleSheet, useColorScheme, TextInput, Pressable, FlatList, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { getThemeColors, COLORS } from '@constants/colors';
-import MapaBase from "@components/Map/MapaBase";
 import { Ionicons } from '@expo/vector-icons';
+import { getThemeColors, COLORS } from '@constants/colors';
 import { getPagedMuseums } from '@services/museum/getListarMuseums';
-import { MuseumResponse } from '@interfaces/museum/MuseumResponse';
+import type { MuseumResponse } from '@interfaces/museum/MuseumResponse';
+import GMap from '@components/Map/GMap';
 
-// Interfaz para los resultados de búsqueda
-interface SearchResult {
-  id: number;
+type LatLng = { latitude: number; longitude: number };
+
+type ResultMuseum = {
+  id: number | string;
   name: string;
   latitude: number;
   longitude: number;
-  type: string;
+  type: 'museum';
+};
+
+type ResultPlace = {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  type: 'place';
+};
+
+type SearchResult = ResultMuseum | ResultPlace;
+
+const GOOGLE_PLACES_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+
+async function searchGooglePlaces(q: string): Promise<ResultPlace[]> {
+  if (!GOOGLE_PLACES_KEY) return [];
+  const url = `https://places.googleapis.com/v1/places:searchText?key=${GOOGLE_PLACES_KEY}`;
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Goog-FieldMask': 'places.id,places.displayName,places.location',
+    },
+    body: JSON.stringify({
+      textQuery: q,
+      languageCode: 'es',
+    }),
+  });
+
+  const json = await res.json();
+  const places = Array.isArray(json?.places) ? json.places : [];
+
+  return places
+    .map((p: any) => {
+      const lat = p?.location?.latitude;
+      const lng = p?.location?.longitude;
+      if (typeof lat !== 'number' || typeof lng !== 'number') return null;
+      const id = p?.id || p?.name || Math.random().toString(36);
+      const name = p?.displayName?.text || 'Lugar';
+      return {
+        id: String(id),
+        name,
+        latitude: lat,
+        longitude: lng,
+        type: 'place' as const,
+      };
+    })
+    .filter(Boolean) as ResultPlace[];
 }
 
 export default function HomeScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const colors = getThemeColors(isDark);
-  
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [allMuseums, setAllMuseums] = useState<MuseumResponse[]>([]);
 
-  // Cargar todos los museos al montar el componente
+  const [query, setQuery] = useState('');
+  const [allMuseums, setAllMuseums] = useState<MuseumResponse[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [results, setResults] = useState<SearchResult[]>([]);
+
+  const [externalPlaces, setExternalPlaces] = useState<ResultPlace[]>([]);
+  const [focusCoord, setFocusCoord] = useState<LatLng | null>(null);
+
+  // NUEVO: altura medida de la barra para posicionar la card debajo
+  const [cardTopInset, setCardTopInset] = useState<number>(60);
+
+  // Cargar museos del backend (una sola vez)
   useEffect(() => {
-    loadAllMuseums();
+    (async () => {
+      try {
+        const data = await getPagedMuseums(0, 100);
+        setAllMuseums(data.contents ?? []);
+      } catch (e) {
+        console.warn('Error al cargar museos:', e);
+      }
+    })();
   }, []);
 
-  // Función para cargar todos los museos
-  const loadAllMuseums = async () => {
-    try {
-      const data = await getPagedMuseums(0, 100); // Cargar hasta 100 museos
-      setAllMuseums(data.contents);
-    } catch (error) {
-      console.error('Error al cargar museos:', error);
-    }
-  };
-
-  // Función para buscar lugares
-  const handleSearch = useCallback(async () => {
-    if (!searchQuery.trim()) {
-      setSearchResults([]);
+  // Búsqueda combinada: museos + Google Places (con debounce)
+  useEffect(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) {
+      setResults([]);
+      setExternalPlaces([]);
       return;
     }
 
     setIsSearching(true);
-    try {
-      // Buscar en los museos existentes con búsqueda parcial
-      const query = searchQuery.toLowerCase().trim();
-      
-      // Búsqueda más flexible que incluye coincidencias parciales
-      const filteredMuseums = allMuseums.filter(museum => {
-        const name = museum.name.toLowerCase();
-        const description = museum.description.toLowerCase();
-        
-        // Buscar en el nombre del museo
-        if (name.includes(query)) return true;
-        
-        // Buscar en la descripción
-        if (description.includes(query)) return true;
-        
-        // Buscar palabras individuales en el nombre
-        const nameWords = name.split(/\s+/);
-        if (nameWords.some(word => word.includes(query))) return true;
-        
-        // Buscar palabras individuales en la descripción
-        const descWords = description.split(/\s+/);
-        if (descWords.some(word => word.includes(query))) return true;
-        
-        // Búsqueda por iniciales o abreviaciones
-        if (query.length >= 2) {
-          // Buscar si las primeras letras de cada palabra coinciden
-          const nameInitials = nameWords.map(word => word.charAt(0)).join('');
-          if (nameInitials.includes(query)) return true;
-        }
-        
-        return false;
-      });
+    const t = setTimeout(async () => {
+      try {
+        // Museos locales
+        const filtered = (allMuseums || []).filter(m => {
+          const name = (m.name ?? '').toLowerCase();
+          const desc = (m.description ?? '').toLowerCase();
+          if (name.includes(q) || desc.includes(q)) return true;
+          if (q.length >= 2) {
+            const initials = name.split(/\s+/).map(w => w[0] || '').join('');
+            if (initials.includes(q)) return true;
+          }
+          return false;
+        });
 
-      // Ordenar resultados por relevancia
-      const sortedMuseums = filteredMuseums.sort((a, b) => {
-        const aName = a.name.toLowerCase();
-        const bName = b.name.toLowerCase();
-        
-        // Priorizar coincidencias exactas en el nombre
-        if (aName === query && bName !== query) return -1;
-        if (bName === query && aName !== query) return 1;
-        
-        // Priorizar coincidencias que empiecen con la búsqueda
-        if (aName.startsWith(query) && !bName.startsWith(query)) return -1;
-        if (bName.startsWith(query) && !aName.startsWith(query)) return 1;
-        
-        // Priorizar coincidencias en el nombre sobre la descripción
-        const aNameMatch = aName.includes(query);
-        const bNameMatch = bName.includes(query);
-        if (aNameMatch && !bNameMatch) return -1;
-        if (bNameMatch && !aNameMatch) return 1;
-        
-        // Si todo es igual, ordenar alfabéticamente
-        return aName.localeCompare(bName);
-      });
+        const ranked = filtered.sort((a, b) => {
+          const A = (a.name ?? '').toLowerCase(), B = (b.name ?? '').toLowerCase();
+          if (A === q && B !== q) return -1;
+          if (B === q && A !== q) return 1;
+          if (A.startsWith(q) && !B.startsWith(q)) return -1;
+          if (B.startsWith(q) && !A.startsWith(q)) return 1;
+          const Ai = A.includes(q), Bi = B.includes(q);
+          if (Ai && !Bi) return -1;
+          if (Bi && !Ai) return 1;
+          return A.localeCompare(B);
+        });
 
-      // Convertir museos a formato de resultados de búsqueda
-      const results: SearchResult[] = sortedMuseums.map(museum => ({
-        id: museum.id,
-        name: museum.name,
-        latitude: museum.latitude,
-        longitude: museum.longitude,
-        type: 'museum'
-      }));
+        const museumResults: ResultMuseum[] = ranked.slice(0, 30).map(m => ({
+          id: m.id,
+          name: m.name,
+          latitude: m.latitude,
+          longitude: m.longitude,
+          type: 'museum',
+        }));
 
-      setSearchResults(results);
-      
-      // Mostrar mensaje si no hay resultados
-      if (results.length === 0) {
-        console.log(`No se encontraron museos para: "${searchQuery}"`);
-      } else {
-        console.log(`Se encontraron ${results.length} museos para: "${searchQuery}"`);
+        // Google Places
+        const placeResults = await searchGooglePlaces(q);
+
+        // Mezcla
+        const mixed: SearchResult[] = [...museumResults, ...placeResults.slice(0, 20)];
+        setResults(mixed);
+
+        // Poner pines de lugares reales en el mapa mientras buscas
+        setExternalPlaces(placeResults.slice(0, 10));
+      } catch {
+        setResults([]);
+        setExternalPlaces([]);
+      } finally {
+        setIsSearching(false);
       }
-      
-    } catch (error) {
-      console.error('Error en búsqueda:', error);
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
-    }
-  }, [searchQuery, allMuseums]);
+    }, 320);
 
-  // Función para búsqueda en tiempo real mientras el usuario escribe
-  const handleSearchInputChange = useCallback((text: string) => {
-    setSearchQuery(text);
-    
-    // Si el texto está vacío, limpiar resultados
-    if (!text.trim()) {
-      setSearchResults([]);
-      return;
-    }
-    
-    // Si el texto tiene al menos 2 caracteres, hacer búsqueda automática
-    if (text.trim().length >= 2) {
-      // Usar setTimeout para evitar demasiadas búsquedas mientras el usuario escribe
-      const timeoutId = setTimeout(() => {
-        handleSearch();
-      }, 300); // Esperar 300ms después de que el usuario deje de escribir
-      
-      return () => clearTimeout(timeoutId);
-    }
-  }, [handleSearch]);
+    return () => clearTimeout(t);
+  }, [query, allMuseums]);
 
-  // Función para limpiar búsqueda
-  const clearSearch = useCallback(() => {
-    setSearchQuery('');
-    setSearchResults([]);
+  const clearQuery = useCallback(() => {
+    setQuery('');
+    setResults([]);
+    setExternalPlaces([]);
+    Keyboard.dismiss();
   }, []);
+
+  const onResultPress = useCallback((r: SearchResult) => {
+    setFocusCoord({ latitude: r.latitude, longitude: r.longitude });
+
+    if (r.type === 'place') {
+      setExternalPlaces(prev => {
+        const rest = prev.filter(p => p.id !== r.id);
+        return [{ ...r }, ...rest];
+      });
+    }
+
+    setQuery('');
+    setResults([]);
+    Keyboard.dismiss();
+  }, []);
+
+  const resultItem = useCallback(({ item }: { item: SearchResult }) => (
+    <Pressable
+      onPress={() => onResultPress(item)}
+      style={({ pressed }) => [
+        styles.resultItem,
+        { backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', opacity: pressed ? 0.85 : 1 }
+      ]}
+    >
+      <View style={styles.resultIcon}>
+        <Ionicons
+          name={item.type === 'museum' ? 'business' : 'location-sharp'}
+          size={18}
+          color={item.type === 'museum' ? COLORS.primary : '#E53935'}
+        />
+      </View>
+      <View style={styles.resultText}>
+        <Text style={[styles.resultName, { color: colors.text }]} numberOfLines={1}>
+          {item.name}
+        </Text>
+        <Text style={[styles.resultSub, { color: colors.textSecondary }]} numberOfLines={1}>
+          {item.type === 'museum' ? 'Museo' : 'Lugar'} • {item.latitude.toFixed(4)}, {item.longitude.toFixed(4)}
+        </Text>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+    </Pressable>
+  ), [colors.text, colors.textSecondary, isDark, onResultPress]);
+
+  const hasResults = results.length > 0;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.content}>
-        {/* Barra de búsqueda */}
-        <View style={styles.searchContainer}>
-          <View style={styles.searchInputContainer}>
-            <Ionicons 
-              name="search" 
-              size={20} 
-              color={colors.textSecondary} 
-              style={styles.searchIcon}
-            />
+      {/* Mapa de fondo */}
+      <View style={styles.mapWrap}>
+        <GMap
+          focusCoord={focusCoord}
+          focusZoom={17}
+          externalPlaces={externalPlaces.map(p => ({
+            id: p.id,
+            name: p.name,
+            latitude: p.latitude,
+            longitude: p.longitude,
+          }))}
+          // ⬇️ NUEVO: esto hace que la tarjeta salga debajo de la barra
+          cardTopInset={cardTopInset}
+        />
+      </View>
+
+      {/* Barra de búsqueda flotante */}
+      <View style={styles.overlay} pointerEvents="box-none">
+        <View
+          style={styles.searchRow}
+          pointerEvents="box-none"
+          onLayout={(e) => {
+            // paddingTop (8) + altura de la fila + un margen (8)
+            const h = e.nativeEvent.layout.height;
+            setCardTopInset(8 + h + 8);
+          }}
+        >
+          <View style={[styles.searchBox, { backgroundColor: isDark ? 'rgba(20,20,20,0.92)' : 'rgba(255,255,255,0.95)' }]}>
+            <Ionicons name="search" size={18} color={colors.textSecondary} style={{ marginRight: 8 }} />
             <TextInput
-              style={[styles.searchInput, { color: colors.text }]}
-              placeholder="Buscar museos por nombre..."
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Buscar museos o lugares…"
               placeholderTextColor={colors.textSecondary}
-              value={searchQuery}
-              onChangeText={handleSearchInputChange}
-              onSubmitEditing={handleSearch}
+              style={[styles.input, { color: colors.text }]}
               returnKeyType="search"
             />
-            {searchQuery.length > 0 && (
-              <Pressable onPress={clearSearch} style={styles.clearButton}>
-                <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
+            {query.length > 0 && (
+              <Pressable onPress={clearQuery} hitSlop={8}>
+                <Ionicons name="close-circle" size={18} color={colors.textSecondary} />
               </Pressable>
             )}
           </View>
-          
-          {/* Botón de búsqueda */}
-          <Pressable 
-            style={[styles.searchButton, { backgroundColor: COLORS.primary }]} 
-            onPress={handleSearch}
-            disabled={isSearching}
+
+          <Pressable
+            onPress={() => setQuery(q => q)}
+            style={[styles.goBtn, { backgroundColor: COLORS.primary }]}
           >
-            <Ionicons 
-              name="search" 
-              size={20} 
-              color="#fff" 
-            />
+            <Ionicons name={isSearching ? 'hourglass' : 'search'} size={20} color="#fff" />
           </Pressable>
         </View>
 
-        {/* Indicador de resultados de búsqueda */}
-        {searchQuery.length > 0 && (
-          <View style={styles.resultsIndicator}>
-            <Text style={[styles.resultsText, { color: colors.textSecondary }]}>
-              {isSearching ? 'Buscando...' : 
-               searchResults.length === 0 ? 'No se encontraron resultados' :
-               `Se encontraron ${searchResults.length} museo${searchResults.length !== 1 ? 's' : ''}`
-              }
-            </Text>
+        {/* Dropdown de resultados */}
+        {(query.length > 0) && (
+          <View style={[
+            styles.dropdown,
+            { backgroundColor: isDark ? 'rgba(12,12,12,0.94)' : 'rgba(255,255,255,0.98)' }
+          ]}>
+            {isSearching && (
+              <Text style={[styles.helper, { color: colors.textSecondary }]}>
+                Buscando…
+              </Text>
+            )}
+
+            {!isSearching && !hasResults && (
+              <Text style={[styles.helper, { color: colors.textSecondary }]}>
+                No se encontraron resultados
+              </Text>
+            )}
+
+            {hasResults && (
+              <FlatList
+                keyboardShouldPersistTaps="handled"
+                data={results.slice(0, 10)}
+                keyExtractor={(it) => String(it.id)}
+                renderItem={resultItem}
+                contentContainerStyle={{ paddingVertical: 6, gap: 6 }}
+                style={{ maxHeight: 280 }}
+              />
+            )}
           </View>
         )}
-
-        {/* Contenedor del mapa */}
-        <View style={styles.mapContainer}>
-          <MapaBase 
-            searchResults={searchResults}
-            onSearchResultPress={(result: SearchResult) => {
-              console.log('Resultado seleccionado:', result);
-              // Aquí puedes implementar la lógica para centrar el mapa en el resultado
-            }}
-          />
-        </View>
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  container: { flex: 1 },
+
+  mapWrap: { ...StyleSheet.absoluteFillObject },
+
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    paddingHorizontal: 16,
+    paddingTop: 8,
   },
-  content: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 0, // Eliminar el padding superior
-  },
-  searchContainer: {
+
+  searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 15,
-    marginTop: 0, // Agregar un pequeño margen superior
-    gap: 10,
+    gap: 8,
   },
-  searchInputContainer: {
+
+  searchBox: {
     flex: 1,
     flexDirection: 'row',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 25,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    elevation: 4,
+    elevation: 6,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
   },
-  searchIcon: {
+
+  input: { flex: 1, fontSize: 15, paddingVertical: 0 },
+
+  goBtn: {
+    width: 42, height: 42, borderRadius: 21,
+    alignItems: 'center', justifyContent: 'center',
+    elevation: 4, shadowColor: '#000',
+    shadowOpacity: 0.18, shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+  },
+
+  dropdown: {
+    marginTop: 8,
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.22,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+  },
+
+  helper: { paddingVertical: 12, textAlign: 'center', fontSize: 13 },
+
+  resultItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+
+  resultIcon: {
+    width: 28, height: 28, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center',
     marginRight: 10,
+    backgroundColor: 'rgba(33,150,243,0.12)',
   },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    paddingVertical: 0,
-  },
-  clearButton: {
-    padding: 5,
-  },
-  searchButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-  mapContainer: {
-    flex: 1,
-    width: '100%',
-  },
-  resultsIndicator: {
-    alignItems: 'center',
-    marginBottom: 10,
-    paddingVertical: 5,
-  },
-  resultsText: {
-    fontSize: 14,
-  },
-}); 
+
+  resultText: { flex: 1 },
+  resultName: { fontSize: 15, fontWeight: '600' },
+  resultSub: { fontSize: 12, marginTop: 2 },
+});

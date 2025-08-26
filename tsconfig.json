@@ -15,7 +15,7 @@
       "@utils/*": ["src/utils/*"],
       "@assets/*": ["src/assets/*"],
       "@interfaces/*": ["src/interfaces/*"],
-      "@constants/*": ["src/constants/*"]
+      "@constants/*": ["src/constants/*"],
     }
   }
 }
