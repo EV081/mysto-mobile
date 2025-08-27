@@ -36,9 +36,18 @@ export default class Api {
     axios.interceptors.response.use(
       (response) => response,
       (error) => {
-        // Si el error es 401 o 403, limpiar el token automáticamente
-        if (error.response?.status === 401 || error.response?.status === 403) {
+        // Solo limpiar token para errores de autenticación reales
+        // 401 = Unauthorized (token inválido o expirado)
+        // 403 = Forbidden (pero puede ser por distancia, permisos, etc.)
+        if (error.response?.status === 401) {
           console.log('Error de autenticación detectado, limpiando token...');
+          this.authorization = null;
+        }
+        // Para 403, solo limpiar si es específicamente un error de token
+        else if (error.response?.status === 403 && 
+                 error.response?.data?.message?.includes('token') ||
+                 error.response?.data?.message?.includes('authentication')) {
+          console.log('Error de permisos de token detectado, limpiando token...');
           this.authorization = null;
         }
         return Promise.reject(error);
