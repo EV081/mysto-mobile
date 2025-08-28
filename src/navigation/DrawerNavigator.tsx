@@ -58,7 +58,7 @@ function CustomDrawerContent(props: any) {
         <TouchableOpacity
           onPress={handleLogoutPress}
           style={[styles.logoutButton, {
-            backgroundColor: COLORS.button.danger,
+            backgroundColor: COLORS.primary,
           }]}
           activeOpacity={0.8}
         >

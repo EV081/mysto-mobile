@@ -35,17 +35,19 @@ export default function MuseumCard({ museum, onPress, onEdit, disabled = false }
 
 const styles = StyleSheet.create({
   card: {
-    flexDirection: 'row',
-    backgroundColor: COLORS.background,
-    borderRadius: 10,
-    marginBottom: 12,
-    elevation: 2,
-    padding: 14,
-    alignItems: 'center',
-    minHeight: 140 // asegura que toda la tarjeta sea más alta
+  flexDirection: 'row',
+  backgroundColor: COLORS.light.background,
+  borderRadius: 10,
+  marginBottom: 12,
+  elevation: 2,
+  padding: 14,
+  alignItems: 'center',
+  minHeight: 140,
+  borderColor: COLORS.black, 
+  borderWidth: 1,   
   },
   image: {
-    width: 120, // más grande
+    width: 120,
     height: 110,
     borderRadius: 10,
     marginRight: 12,

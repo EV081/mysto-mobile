@@ -262,7 +262,7 @@ export default function ShopScreen() {
 const styles = StyleSheet.create({
     safe: {
         flex: 1,
-        backgroundColor: COLORS.light.background,
+        backgroundColor: COLORS.background,
         paddingBottom: 16,
     },
     header: {
@@ -332,6 +332,8 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         borderRadius: 14,
         marginHorizontal: 4,
+        borderColor: COLORS.black, 
+        borderWidth: 1,   
     },
     switchBtnActive: {
         backgroundColor: COLORS.primary,
@@ -356,8 +358,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
         backgroundColor: 'rgba(255,255,255,0.95)',
-        borderTopWidth: 1,
-        borderTopColor: COLORS.light.border,
+        borderColor: COLORS.black, 
+        borderWidth: 1,   
     },
     pageBtn: {
         backgroundColor: COLORS.primary,

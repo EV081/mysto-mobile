@@ -9,6 +9,7 @@ import { unequipCosmetic } from "@services/cosmetics/unequipCosmetic";
 import { Cosmetic } from "@interfaces/cosmetics/Cosmetic";
 import { CosmeticType } from "@interfaces/cosmetics/CosmeticType";
 import { useFocusEffect } from "@react-navigation/native";
+import { COLORS } from "@constants/colors";
 
 const TYPE_LABELS: Record<CosmeticType, string> = {
   CABEZA: "Cabezas",
@@ -123,7 +124,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     padding: 16,
-    backgroundColor: "#f8fafc",
+    backgroundColor: COLORS.background,
   },
   title: {
     fontSize: 22,
@@ -142,11 +143,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: "#e0e7ef",
+    backgroundColor: "#cfcfcfff",
     marginHorizontal: 4,
+    borderColor: COLORS.black, 
+    borderWidth: 1,   
   },
   typeButtonSelected: {
-    backgroundColor: "#1e40af",
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.black, 
+    borderWidth: 1,   
   },
   typeButtonText: {
     fontSize: 16,

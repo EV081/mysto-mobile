@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, Image, StyleSheet, TouchableOpacity } from "react-native";
 import { Cosmetic } from "@interfaces/cosmetics/Cosmetic";
 import { CosmeticType } from "@interfaces/cosmetics/CosmeticType";
+import { COLORS } from '@constants/colors';
 
 type Props = {
   cosmetic: Cosmetic;
@@ -51,6 +52,8 @@ const styles = StyleSheet.create({
     shadowColor: "#000",
     shadowOpacity: 0.07,
     shadowRadius: 6,
+    borderColor: COLORS.black, 
+    borderWidth: 1,   
   },
   equipped: {
     borderColor: "#10b981",
@@ -71,7 +74,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   button: {
-    backgroundColor: "#1e40af",
+    backgroundColor: COLORS.primary,
     borderRadius: 8,
     paddingHorizontal: 20,
     paddingVertical: 5,

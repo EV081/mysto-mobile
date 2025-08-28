@@ -1,9 +1,9 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { Linking, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, useColorScheme } from 'react-native';
 import { COLORS } from '@constants/colors';
 import { MuseumResponse } from '@interfaces/museum/MuseumResponse';
 import MuseumImagesCarousel from './MuseumForm/MuseumImagesCarousel';
+import { Card, Divider } from 'react-native-paper';
 
 interface MuseumInfoProps {
   museum: MuseumResponse;
@@ -11,49 +11,82 @@ interface MuseumInfoProps {
 }
 
 export const MuseumInfo: React.FC<MuseumInfoProps> = ({ museum, onMapPress }) => {
-  const formatHour = (time?: string) => {
-    if (!time) return '';
-    return time.substring(0, 5);
-  };
+  const isDark = useColorScheme() === 'dark';
+  const formatHour = (t?: string) => (t ? t.substring(0, 5) : '');
 
   return (
-    <View>
-      {museum.pictureUrls && museum.pictureUrls.length > 0 && (
-        <MuseumImagesCarousel images={museum.pictureUrls} />
+    <View style={{ marginBottom: 20 }}>
+      {!!museum.pictureUrls?.length && (
+        <View style={styles.imageWrapper}>
+          <MuseumImagesCarousel images={museum.pictureUrls} />
+        </View>
       )}
-      <Text style={[styles.title, { marginTop: 10 }]}>{museum.name}</Text>
-      <Text style={styles.desc}>{museum.description}</Text>
-      
-      <TouchableOpacity onPress={() => onMapPress(museum.latitude as number, museum.longitude as number)}>
-        <Text style={[styles.info, { color: COLORS.blue[600], textDecorationLine: 'underline' }]}>
-          Ver en el mapa
-        </Text>
-      </TouchableOpacity>
 
-      {museum.openTime && museum.closeTime && (
-        <Text style={styles.info}>
-          Abre: {formatHour(museum.openTime)} - Cierra: {formatHour(museum.closeTime)}
-        </Text>
-      )}
+      <Card
+        style={[styles.card, { borderColor: COLORS.black, backgroundColor: COLORS.light.background }]}
+      >
+        <Card.Content style={styles.cardContent}>
+          <Text style={[styles.title, { color: COLORS.primary }]}>{museum.name}</Text>
+          {!!museum.description && (
+            <Text style={[styles.desc, { color: COLORS.text }]}>{museum.description}</Text>
+          )}
+
+          <TouchableOpacity
+            onPress={() => onMapPress(museum.latitude as number, museum.longitude as number)}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          >
+            <Text style={[styles.link, { color: COLORS.primary }]}>Ver en el mapa</Text>
+          </TouchableOpacity>
+
+          {!!museum.openTime && !!museum.closeTime && (
+            <>
+              <Divider style={{ marginVertical: 10, opacity: 0.2 }} />
+              <Text style={[styles.info, { color: COLORS.text }]}>
+                Abre: {formatHour(museum.openTime)} — Cierra: {formatHour(museum.closeTime)}
+              </Text>
+            </>
+          )}
+        </Card.Content>
+      </Card>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  imageWrapper: {
+    marginBottom: 12,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  card: {
+    borderRadius: 18,
+    borderWidth: 1,
+  },
+  cardContent: {
+    paddingVertical: 20,
+    paddingHorizontal: 16
+  },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: COLORS.primary,
-    marginBottom: 8
+    fontSize: 22,
+    fontWeight: '800',
+    textAlign: 'justify',
+    marginBottom: 8,
   },
   desc: {
-    fontSize: 16,
-    color: COLORS.text,
-    marginBottom: 8
+    fontSize: 15,
+    lineHeight: 20,
+    textAlign: 'justify',
+    marginBottom: 12,
+  },
+ link: {
+    fontSize: 14,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+    marginBottom: 6,
+    textAlign: 'left', 
   },
   info: {
-    fontSize: 14,
-    color: COLORS.text,
-    marginBottom: 4
+    fontSize: 13,
+    textAlign: 'left',
   },
-}); 
+});

@@ -475,7 +475,7 @@ useEffect(() => {
               </Text>
               
               <TouchableOpacity
-                style={[styles.resetButton, { backgroundColor: COLORS.button.secondary }]}
+                style={[styles.resetButton, { backgroundColor: COLORS.primary }]}
                 onPress={resetAdventure}
               >
                 <Text style={styles.resetButtonText}>Nueva Aventura</Text>
@@ -488,10 +488,10 @@ useEffect(() => {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: COLORS.background }]}>
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>
+          <Text style={[styles.title, { color: COLORS.primary }]}>
             Aventura Cultural
           </Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
@@ -501,18 +501,18 @@ useEffect(() => {
         
         {isLoading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.button.primary} />
+            <ActivityIndicator size="large" color={COLORS.primary} />
             <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
               Iniciando aventura...
             </Text>
           </View>
         ) : adventureSteps.length === 0 ? (
-          <Card style={[styles.card, { backgroundColor: colors.cardBackground }]}>
+          <Card style={[styles.card, { backgroundColor: colors.cardBackground}]}>
             <View style={styles.cardContent}>
               <Ionicons 
                 name="compass-outline" 
                 size={64} 
-                color={COLORS.button.primary} 
+                color={COLORS.primary} 
                 style={styles.startIcon}
               />
               <Text style={[styles.startTitle, { color: colors.text }]}>
@@ -523,7 +523,7 @@ useEffect(() => {
               </Text>
               
               <TouchableOpacity
-                style={[styles.startButton, { backgroundColor: COLORS.button.primary }]}
+                style={[styles.startButton, { backgroundColor: COLORS.primary }]}
                 onPress={startAdventure}
               >
                 <Text style={styles.startButtonText}>Comenzar Aventura</Text>
@@ -532,7 +532,7 @@ useEffect(() => {
               {/* Botón para mostrar información de ubicación */}
               {params && (
                 <TouchableOpacity
-                  style={[styles.infoButton, { borderColor: colors.border }]}
+                  style={[styles.infoButton, { borderColor: COLORS.black }]}
                   onPress={showLocationInfo}
                 >
                   <Ionicons name="information-circle-outline" size={20} color={colors.textSecondary} />
@@ -594,6 +594,8 @@ const styles = StyleSheet.create({
     shadowRadius: 2.22,
     borderRadius: 12,
     marginBottom: 16,
+    borderColor: COLORS.black, 
+    borderWidth: 1,   
   },
   cardContent: {
     padding: 20,

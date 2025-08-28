@@ -1,8 +1,8 @@
 // Paleta de colores principal de la aplicación
 export const COLORS = {
   // Color principal
-  primary: '#7300BF',
-  background: '#fff',
+  primary: '#684300ff',
+  background: '#f7f2e9',
   text: '#1e293b',
   border: '#e0e0e0',
 
@@ -11,9 +11,9 @@ export const COLORS = {
     background: '#FFFFFF',
     text: '#000000',
     textSecondary: '#666666',
-    cardBackground: '#F8F8F8',
+    cardBackground: '#FFFFFF',
     border: '#E0E0E0',
-    buttonBackground: '#7300BF',
+    buttonBackground: '#684300ff',
     buttonText: '#FFFFFF',
   },
   
@@ -23,7 +23,7 @@ export const COLORS = {
     textSecondary: '#CCCCCC',
     cardBackground: '#1A1A1A',
     border: '#333333',
-    buttonBackground: '#7300BF',
+    buttonBackground: '#f7f2e9',
     buttonText: '#FFFFFF',
   },
   

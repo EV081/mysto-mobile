@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 6,
         borderWidth: 1,
-        borderColor: COLORS.light.border,
+        borderColor: COLORS.black, 
     },
     cardPressed: {
         transform: [{ scale: 0.97 }],

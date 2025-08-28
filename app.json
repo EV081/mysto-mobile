@@ -2,6 +2,7 @@
   "expo": {
     "name": "temp-project",
     "slug": "temp-project",
+    "owner": "evsz_01",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -46,7 +47,7 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "fe4c449c-56a2-41a8-b2eb-909fac53c2c4"
+        "projectId": "4c8f2632-a8c4-4d7f-a31a-f23100500e60"
       }
     }
   }

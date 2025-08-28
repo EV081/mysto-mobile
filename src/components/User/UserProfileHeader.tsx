@@ -52,7 +52,7 @@ const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({
         borderRadius: 16,
         borderWidth: 1,
         borderColor: '#000000ff',
-        shadowColor: '#7C3AED',
+        shadowColor: COLORS.primary,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.08,
         shadowRadius: 8,
@@ -73,7 +73,7 @@ const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({
             </View>
           )}
           <TouchableOpacity
-            style={[styles.editImageButton, { backgroundColor: '#7C3AED', borderColor: '#fff' }]}
+            style={[styles.editImageButton, { backgroundColor: COLORS.primary, borderColor: '#fff' }]}
             onPress={changeProfileImage}
             disabled={updatingImage}
           >
@@ -89,7 +89,7 @@ const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({
           <Text style={[styles.userName, { color: '#374151' }]}>
             {user.name}
           </Text>
-          <Text style={[styles.userEmail, { color: '#7C3AED' }]}>
+          <Text style={[styles.userEmail, { color: COLORS.primary }]}>
             {user.email}
           </Text>
         </View>
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
     borderRadius: 45,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#7C3AED',
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12,
     shadowRadius: 8,
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
     width: 90,
     height: 90,
     borderRadius: 45,
-    shadowColor: '#7C3AED',
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12,
     shadowRadius: 8,
@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: 'white',
-    shadowColor: '#7C3AED',
+    shadowColor: COLORS.primary,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12,
     shadowRadius: 4,
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
   avatarText: {
     fontSize: 36,
     fontWeight: 'bold',
-    color: '#7C3AED',
+    color: COLORS.primary,
   },
   userInfo: {
     flex: 1,

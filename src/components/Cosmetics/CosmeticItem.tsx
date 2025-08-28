@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, Image, StyleSheet, TouchableOpacity } from "react-native";
 import { Cosmetic } from "@interfaces/cosmetics/Cosmetic";
+import { COLORS } from '@constants/colors';
 
 type Props = {
   cosmetic: Cosmetic;
@@ -39,7 +40,9 @@ const styles = StyleSheet.create({
     shadowColor: "#000",
     shadowOpacity: 0.12,
     shadowRadius: 4,
-    elevation: 2
+    elevation: 2,
+    borderColor: COLORS.black, 
+    borderWidth: 1,
   },
   equipped: {
     borderColor: "#10b981",
