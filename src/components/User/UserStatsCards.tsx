@@ -6,6 +6,7 @@ import {
   useColorScheme,
 } from 'react-native';
 import { UsersResponseDto } from '@interfaces/user/UsersResponseDto';
+import { getThemeColors, COLORS } from '@constants/colors';
 
 interface UserStatsCardsProps {
   user: UsersResponseDto;
@@ -23,7 +24,7 @@ const UserStatsCards: React.FC<UserStatsCardsProps> = ({ user }) => {
         borderRadius: 16,
         borderWidth: 1,
         borderColor: '#000000ff',
-        shadowColor: '#7C3AED',
+        shadowColor: COLORS.primary,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.08,
         shadowRadius: 8,
@@ -42,7 +43,7 @@ const UserStatsCards: React.FC<UserStatsCardsProps> = ({ user }) => {
               🪙
             </Text>
           </View>
-          <Text style={[styles.statValue, { color: '#7C3AED' }]}>
+          <Text style={[styles.statValue, { color: COLORS.primary }]}>
             {user.coins.toLocaleString()}
           </Text>
           <Text style={[styles.statLabel, { color: '#374151' }]}>
@@ -55,7 +56,7 @@ const UserStatsCards: React.FC<UserStatsCardsProps> = ({ user }) => {
               ⭐
             </Text>
           </View>
-          <Text style={[styles.statValue, { color: '#7C3AED' }]}>
+          <Text style={[styles.statValue, { color: COLORS.primary }]}>
             {user.points.toLocaleString()}
           </Text>
           <Text style={[styles.statLabel, { color: '#374151' }]}>

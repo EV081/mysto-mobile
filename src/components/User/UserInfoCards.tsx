@@ -7,6 +7,7 @@ import {
   useColorScheme,
 } from 'react-native';
 import { UsersResponseDto } from '@interfaces/user/UsersResponseDto';
+import { COLORS } from '@constants/colors';
 
 interface UserInfoCardsProps {
   user: UsersResponseDto;
@@ -25,7 +26,7 @@ const UserInfoCards: React.FC<UserInfoCardsProps> = ({ user, onEditProfile }) =>
         borderRadius: 16,
         borderWidth: 1,
         borderColor: '#000000ff',
-        shadowColor: '#7C3AED',
+        shadowColor: COLORS.primary,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.08,
         shadowRadius: 8,
@@ -35,7 +36,7 @@ const UserInfoCards: React.FC<UserInfoCardsProps> = ({ user, onEditProfile }) =>
       }
     ]}>
       <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: '#7C3AED' }]}>
+        <Text style={[styles.sectionTitle, { color:  COLORS.primary }]}>
           <Text style={{ color: '#000000ff' }}> Información Personal</Text>
         </Text>
         <TouchableOpacity
@@ -52,7 +53,7 @@ const UserInfoCards: React.FC<UserInfoCardsProps> = ({ user, onEditProfile }) =>
           <Text style={[styles.infoLabel, { color: isDark ? '#d1d5db' : '#374151' }]}>
             Nombre completo
           </Text>
-          <Text style={[styles.infoValue, { color: '#7C3AED' }]}>
+          <Text style={[styles.infoValue, { color:  COLORS.primary, }]}>
             {user.name}
           </Text>
         </View>
@@ -63,7 +64,7 @@ const UserInfoCards: React.FC<UserInfoCardsProps> = ({ user, onEditProfile }) =>
           <Text style={[styles.infoLabel, { color: isDark ? '#d1d5db' : '#374151' }]}>
             Correo electrónico
           </Text>
-          <Text style={[styles.infoValue, { color: '#7C3AED' }]}>
+          <Text style={[styles.infoValue, { color:  COLORS.primary}]}>
             {user.email}
           </Text>
         </View>
@@ -92,7 +93,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 8,
-    backgroundColor: '#7C3AED',
+    backgroundColor: COLORS.primary,
     borderWidth: 1,
     borderColor: '#ffffffff',
   },

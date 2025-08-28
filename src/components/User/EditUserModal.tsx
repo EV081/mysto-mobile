@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { UsersResponseDto } from '@interfaces/user/UsersResponseDto';
 import { useModal } from '@contexts/ModalContext';
+import { COLORS } from '@constants/colors';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('screen');
 
@@ -133,7 +134,7 @@ const EditUserModal: React.FC<EditUserModalProps> = ({
   const modalBg = isDark ? '#fff' : '#fff';
   const borderColor = '#000';
   const green = '#22c55e';
-  const purple = '#7C3AED';
+  const purple = COLORS.primary;
   const textColor = '#111'; 
 
   if (!visible) return null;

@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   useColorScheme,
 } from 'react-native';
+import { COLORS } from '@constants/colors';
 
 interface UserActionsSectionProps {
   onChangePassword: () => void;
@@ -25,7 +26,7 @@ const UserActionsSection: React.FC<UserActionsSectionProps> = ({
         borderRadius: 16,
         borderWidth: 1,
         borderColor: '#000000ff',
-        shadowColor: '#7C3AED',
+        shadowColor:   COLORS.primary,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.08,
         shadowRadius: 8,
@@ -34,7 +35,7 @@ const UserActionsSection: React.FC<UserActionsSectionProps> = ({
         marginHorizontal: 12,
       }
     ]}>
-      <Text style={[styles.sectionTitle, { color: '#7C3AED' }]}>
+      <Text style={[styles.sectionTitle, { color: COLORS.primary, }]}>
         <Text style={{ color: '#000000ff' }}> Configuración de Cuenta</Text>
       </Text>
       <View style={styles.actionsContainer}>
@@ -42,7 +43,7 @@ const UserActionsSection: React.FC<UserActionsSectionProps> = ({
           style={[
             styles.actionCard,
             {
-              backgroundColor: '#8685e7ff',
+              backgroundColor: COLORS.primary,
               borderRadius: 10,
               borderWidth: 1,
               borderColor: '#ffffffff',
@@ -67,7 +68,7 @@ const UserActionsSection: React.FC<UserActionsSectionProps> = ({
           </Text>
         </TouchableOpacity>
       </View>
-      <Text style={[styles.footerText, { color: '#7C3AED' }]}>
+      <Text style={[styles.footerText, { color: COLORS.primary, }]}>
         Desliza hacia abajo para actualizar la información
       </Text>
     </View>

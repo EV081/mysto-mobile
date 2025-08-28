@@ -14,7 +14,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
-import { RouteProp, useRoute, useNavigation, useFocusEffect, NavigationProp as BaseNavigationProp } from '@react-navigation/native';
+import { RouteProp, useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
 import { TouchableOpacity } from 'react-native-gesture-handler';
 import { CulturalObjectResponse } from '@interfaces/cuturalObject/CulturalObjectResponse';
 import { CulturalObjectType } from '@interfaces/cuturalObject/CulturalObjectType';
@@ -36,14 +37,16 @@ type ObjectDetailRouteProp = RouteProp<{
     fromScreen?: 'Album' | 'RedSocial' | 'Museo'; 
   };
 }, 'ObjectDetail'>;
-
-type NavigationProp = BaseNavigationProp<{
+type RootStackParamList = {
   Album: undefined;
   RedSocial: undefined;
   Home: undefined;
   Museo: undefined;
   ObjectDetail: any;
-}>;
+  MuseumforOneScreen: { museumId: number; fromScreen: string };
+};
+
+type NavigationProp = StackNavigationProp<RootStackParamList>;
 
 const { width: screenWidth } = Dimensions.get('window');
   
@@ -301,7 +304,7 @@ export default function ObjectDetailScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <SafeAreaView style={[styles.container, { backgroundColor: COLORS.background }]}>
         <View style={styles.header}>
           <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
@@ -317,7 +320,7 @@ export default function ObjectDetailScreen() {
 
   if (!objectDetail) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <SafeAreaView style={[styles.container, { backgroundColor: COLORS.background }]}>
         <View style={styles.header}>
           <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
@@ -328,8 +331,16 @@ export default function ObjectDetailScreen() {
     );
   }
 
+  const handleMuseoPressFromRedSocial = useCallback((item: CulturalObjectResponse) => {
+      console.log('Navigating to museum with ID:', item.museumId);
+      navigation.push('MuseumforOneScreen', {
+          museumId: item.museumId,
+          fromScreen: 'ObjectDetailScreen'
+      });
+  }, [navigation]);
+
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: COLORS.background }]}>
       <View style={styles.header}>
       <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
         <Ionicons name="arrow-back" size={24} color={colors.text} />
@@ -353,8 +364,8 @@ export default function ObjectDetailScreen() {
 
               <View style={styles.metaInfo}>
                 <View style={styles.typeContainer}>
-                  <Ionicons name="bookmark-outline" size={16} color="#1e40af" />
-                  <Text style={[styles.type, { color: '#1e40af' }]}>
+                  <Ionicons name="bookmark-outline" size={16} color='#684300ff' />
+                  <Text style={[styles.type, { color: COLORS.primary }]}>
                     {typeTranslations[objectDetail.type] || objectDetail.type}
                   </Text>
                 </View>
@@ -370,14 +381,19 @@ export default function ObjectDetailScreen() {
 
               <View style={styles.museumInfo}>
                 <Ionicons name="library-outline" size={16} color={colors.textSecondary} />
-                <Text style={[styles.museumName, { color: colors.textSecondary }]}>
-                  {objectDetail.museumName}
-                </Text>
+                <TouchableOpacity 
+                    onPress={() => handleMuseoPressFromRedSocial(objectDetail)}
+                    style={{ paddingVertical: 4 }}
+                >
+                  <Text style={[styles.museumName, { color: colors.textSecondary }]}>
+                    {objectDetail.museumName}
+                  </Text>
+                </TouchableOpacity>
               </View>
 
               {objectDetail.coins && (
                 <View style={styles.rewardContainer}>
-                  <Ionicons name="gift-outline" size={16} color="#f59e0b" />
+                  <Ionicons name="gift-outline" size={16} color='#684300ff' />
                   <Text style={[styles.rewardText, { color: colors.text }]}>
                     {objectDetail.coins}
                   </Text>
@@ -420,7 +436,6 @@ export default function ObjectDetailScreen() {
                 onSimilarObjectsResult={async (results) => {
                   try {
                     setLoadingSimilar(true);
-                    // results contain id and combined_score; fetch full object info for each id
                     const fetchedObjects: CulturalObjectResponse[] = [];
                     const simMap: Record<number, number> = {};
 
@@ -443,7 +458,7 @@ export default function ObjectDetailScreen() {
                 onError={(error) => {
                   console.error('Error:', error);
                 }}
-                style={[styles.similarObjectsButton, { backgroundColor: COLORS.button.primary }]}
+                style={[styles.similarObjectsButton, { backgroundColor: COLORS.primary }]}
               />
               {/* Render similar objects list if available */}
               {loadingSimilar ? (
@@ -459,7 +474,6 @@ export default function ObjectDetailScreen() {
                   <CulturalObjectsList
                     objects={similarObjects}
                     onObjectPress={(obj) => {
-                      // Navigate to the same ObjectDetail but preserve similarObjects state in this screen instance
                       (navigation as any).push('ObjectDetail', {
                         albumItem: {
                           id: obj.id,
@@ -651,6 +665,8 @@ const styles = StyleSheet.create({
   },
   card: {
     elevation: 2,
+    borderColor: COLORS.black, 
+    borderWidth: 1,   
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.22,
@@ -789,7 +805,7 @@ const styles = StyleSheet.create({
     minHeight: 80,
   },
   submitButton: {
-    backgroundColor: '#10b981',
+    backgroundColor: COLORS.primary,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -840,6 +856,7 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
   },
   similarObjectsButton: {
+    backgroundColor: COLORS.primary,
     marginTop: 16,
     paddingVertical: 12,
     paddingHorizontal: 20,

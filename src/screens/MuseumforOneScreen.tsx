@@ -174,7 +174,7 @@ export default function MuseumforOneScreen() {
       </View>
         <View style={{ flex: 1 }}>
         <ScrollView
-          style={[styles.container, { backgroundColor: colors.background }]}
+          style={[styles.container, { backgroundColor: COLORS.background }]}
           contentContainerStyle={{ paddingBottom: 80, flexGrow: 1 }}
           refreshControl={
             <RefreshControl

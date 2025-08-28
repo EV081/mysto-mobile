@@ -97,7 +97,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     elevation: 1,
     borderWidth: 1,
-    borderColor: COLORS.card.border
+    borderColor: COLORS.black
   },
   objectImage: {
     width: 80,

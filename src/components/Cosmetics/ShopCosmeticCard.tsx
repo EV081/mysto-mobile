@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, Image, StyleSheet, TouchableOpacity } from "react-native";
 import { Cosmetic } from "@interfaces/cosmetics/Cosmetic";
 import { CosmeticType } from "@interfaces/cosmetics/CosmeticType";
+import { COLORS } from '@constants/colors';
 
 const coinImage = require("../../../assets/coin.png");
 
@@ -28,7 +29,10 @@ export default function ShopCosmeticCard({ cosmetic, onBuy }: Props) {
   return (
     <View style={styles.card}>
       <View style={styles.header}>
-        <Text style={styles.name}>{cosmetic.name}</Text>
+        <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">
+  {cosmetic.name}
+</Text>
+
         <Text style={styles.type}>{cosmetic.type}</Text>
       </View>
       <Image source={{ uri: cosmetic.imageUrl }} style={imgStyle} />
@@ -50,11 +54,16 @@ const styles = StyleSheet.create({
     padding: 12,
     margin: 8,
     width: 140,
+    height: 250,  
     alignItems: "center",
+    justifyContent: "space-between",
     elevation: 3,
     shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    borderColor: COLORS.black, 
+    borderWidth: 1,   
   },
   header: {
     width: "100%",
@@ -94,11 +103,11 @@ const styles = StyleSheet.create({
   },
   price: {
     fontSize: 16,
-    color: "#1e40af",
+    color: COLORS.primary,
     fontWeight: "bold",
   },
   button: {
-    backgroundColor: "#1e40af",
+    backgroundColor: COLORS.primary,
     borderRadius: 8,
     paddingHorizontal: 24,
     paddingVertical: 6,

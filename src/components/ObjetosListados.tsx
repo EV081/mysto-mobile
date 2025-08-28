@@ -181,13 +181,6 @@ export default function ObjetosListados({ onObjectPress }: ObjetosListadosProps)
     });
     }, [navigation, convertToAlbumItem]);
 
-    const handleMuseoPressFromRedSocial = useCallback((item: CulturalObjectResponse) => {
-        console.log('Navigating to museum with ID:', item.museumId);
-        navigation.push('MuseumforOneScreen', {
-            museumId: item.museumId,
-            fromScreen: 'RedSocial'
-        });
-    }, [navigation]);
 
     const renderItem = ({ item }: { item: CulturalObjectResponse }) => (
         <View style={styles.publicationCard}>
@@ -217,28 +210,18 @@ export default function ObjetosListados({ onObjectPress }: ObjetosListadosProps)
                     </Text>
                 )}
                 <View style={{ marginTop: 10 }}>
-                    <Text style={{ fontSize: 14, color: '#64748b', marginTop: 2 }}>
+                    <Text style={{ fontSize: 14, color: '#000000', marginTop: 2 }}>
                         <Text style={{ fontWeight: 'bold' }}>Calificación:</Text> {item.qualification?.toFixed(2)} / 5
                     </Text>
-                    <Text style={{ fontSize: 14, color: '#64748b', marginTop: 2 }}>
-                        <Text style={{ fontWeight: 'bold' }}>Tipo:</Text> {item.type}
-                    </Text>
-                    <TouchableOpacity 
-                        onPress={() => handleMuseoPressFromRedSocial(item)}
-                        style={{ paddingVertical: 4 }}
-                    >
-                        <Text style={{ fontSize: 14, color: '#64748b', marginTop: 2 }}>
-                            <Text style={{ fontWeight: 'bold' }}>Museo:</Text> {item.museumName}
-                        </Text>
-                    </TouchableOpacity>
                 </View>
                 <View style={{
-                    backgroundColor: '#f1f5f9',
+                    backgroundColor: COLORS.background,
                     borderRadius: 8,
+                    borderColor: COLORS.black,
                     padding: 10,
                     marginTop: 14,
                 }}>
-                    <Text style={{ fontWeight: 'bold', color: '#a37c10ff', marginBottom: 4 }}>Comentarios:</Text>
+                    <Text style={{ fontWeight: 'bold', color: '#684300ff', marginBottom: 4 }}>Comentarios:</Text>
                     <CommentsFromObjects 
                         reviews={reviews[item.id] || []}
                         loading={loadingReviews[item.id] || false}
@@ -246,7 +229,6 @@ export default function ObjetosListados({ onObjectPress }: ObjetosListadosProps)
                     />
                 </View>
                 
-                {/* Comment input section */}
                 {session && (
                     <View style={styles.commentInputContainer}>
                         <StarReviews
@@ -291,7 +273,6 @@ export default function ObjetosListados({ onObjectPress }: ObjetosListadosProps)
 
     return (
         <View style={styles.container}>
-            <Text style={styles.title}>Objetos Culturales</Text>
             {objetos.length === 0 ? (
                 <View style={styles.centeredContainer}>
                     <Text style={styles.noObjectsText}>No se encontraron objetos.</Text>
@@ -313,13 +294,13 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         padding: 16,
-        backgroundColor: '#f8fafc',
+        backgroundColor: COLORS.background,
     },
     title: {
         fontSize: 22,
         fontWeight: 'bold',
         marginBottom: 16,
-        color: '#1a6dc1ff',
+        color: COLORS.primary,
     },
     listContainer: {
         paddingBottom: 16,
@@ -334,20 +315,22 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 2,
         overflow: 'hidden',
+        borderColor: COLORS.black, 
+        borderWidth: 1,   
     },
     publicationImage: {
         width: '100%',
         aspectRatio: 1,
-        backgroundColor: '#f1f5f9',
+        backgroundColor: COLORS.background,
     },
     publicationInfo: {
         padding: 14,
     },
     publicationName: {
-        fontSize: 17,
+        fontSize: 22,
         fontWeight: 'bold',
         marginBottom: 6,
-        color: '#a37c10ff',
+        color: COLORS.primary,
     },
     publicationDescription: {
         fontSize: 15,
@@ -430,5 +413,6 @@ const styles = StyleSheet.create({
         alignItems: 'flex-end',
         marginTop: 12,
         paddingHorizontal: 2,
+
     },
 });

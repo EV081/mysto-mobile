@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   confirmButton: {
-    backgroundColor: COLORS.button.danger,
+    backgroundColor: COLORS.primary,
   },
   cancelButtonText: {
     fontSize: 14,

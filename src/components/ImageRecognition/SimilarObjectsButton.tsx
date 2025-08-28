@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import { getSimilarObjectbyId, SimilarObject } from '@services/imageRecognition/getSimilarObjectsbyId';
+import { COLORS } from '@constants/colors';
 
 interface SimilarObjectsButtonProps {
   objectId: number;
@@ -112,7 +113,7 @@ export const SimilarObjectsButton: React.FC<SimilarObjectsButtonProps> = ({
 
 const styles = StyleSheet.create({
   button: {
-    backgroundColor: '#34C759',
+    backgroundColor: COLORS.primary,
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 8,
@@ -121,7 +122,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
   },
   buttonDisabled: {
-    backgroundColor: '#A0A0A0',
+    backgroundColor: COLORS.primary,
   },
   buttonContent: {
     flexDirection: 'row',

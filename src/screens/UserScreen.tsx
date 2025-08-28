@@ -174,7 +174,7 @@ export default function UserScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colorScheme === 'dark' ? '#1e293b' : '#f3f4f6' }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colorScheme === 'dark' ? '#1e293b' : COLORS.background }]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}

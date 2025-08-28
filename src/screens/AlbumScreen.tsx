@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { AlbumResponseDto, AlbumStatsDto } from '@interfaces/album/AlbumResponse';
 import { getCompleteAlbum } from '@services/album/getCompleteAlbum';
 import AlbumItem from '@components/Album/AlbumItem';
-import { getThemeColors } from '@constants/colors';
+import { COLORS, getThemeColors } from '@constants/colors';
 import { Ionicons } from '@expo/vector-icons';
 import Pagination from '@components/common/Pagination';
 
@@ -197,7 +197,7 @@ export default function AlbumScreen() {
   
   if (isLoading && !isRefreshing && isInitialLoad.current) {
     return (
-      <SafeAreaView style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
+      <SafeAreaView style={[styles.container, styles.centered, { backgroundColor: COLORS.background }]}>
         <ActivityIndicator size="large" />
         <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
           Cargando tu álbum...
@@ -207,7 +207,7 @@ export default function AlbumScreen() {
   }
   
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: COLORS.background }]}>
       <FlatList
         data={displayedObjects}
         renderItem={renderItem}
@@ -272,6 +272,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
+    borderColor: COLORS.black, 
+    borderWidth: 1,   
   },
   statNumber: {
     fontSize: 24,
