@@ -61,23 +61,6 @@ export const CulturalObjectsList: React.FC<CulturalObjectsListProps> = ({
             {typeof similarityMap !== 'undefined' && similarityMap[item.id] != null && (
               <Text style={styles.similarityText}>Similitud: {similarityMap[item.id].toFixed(1)}%</Text>
             )}
-
-            {showActions && onEditObject && onDeleteObject && (
-              <View style={styles.objectActions}>
-                <TouchableOpacity 
-                  onPress={() => onEditObject(item)}
-                  style={styles.editObjectButton}
-                >
-                  <Text style={styles.editObjectText}>Editar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  onPress={() => onDeleteObject(item.id)}
-                  style={styles.deleteObjectButton}
-                >
-                  <Text style={styles.deleteObjectText}>Eliminar</Text>
-                </TouchableOpacity>
-              </View>
-            )}
           </View>
         </TouchableOpacity>
       )}

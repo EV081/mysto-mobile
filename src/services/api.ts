@@ -37,7 +37,9 @@ export default class Api {
       (response) => response,
       (error) => {
         // Si el error es 401 o 403, limpiar el token automáticamente
-        if (error.response?.status === 401 || error.response?.status === 403) {
+  // Solo limpiar el token si es 401 (no autorizado). No limpiar en 403 (prohibido)
+  // porque 403 puede significar falta de permisos y no necesariamente token inválido.
+  if (error.response?.status === 401) {
           console.log('Error de autenticación detectado, limpiando token...');
           this.authorization = null;
         }
@@ -82,9 +84,12 @@ export default class Api {
   public async request<RequestType, ResponseType>(config: AxiosRequestConfig) {
     const headers: RawAxiosRequestHeaders = {
       'Content-Type': 'application/json',
-      Authorization: this._authorization ? `Bearer ${this._authorization}` : '',
       ...config.headers,
     };
+    // Añadir Authorization solo si existe un token válido. Evita enviar 'Authorization: ""'.
+    if (this._authorization) {
+      headers.Authorization = `Bearer ${this._authorization}`;
+    }
     const configOptions: AxiosRequestConfig = {
       ...config,
       baseURL: this._basePath,

@@ -1,10 +1,10 @@
 import { ReviewRequestDto } from "@interfaces/reviews/ReviewRequest";
 import Api from "@services/api";
 
-export async function createReviewCulturalObject(
-  culturalObjectId: number,
+export async function updateReview(
+  reviewId: number,
   reviewData: ReviewRequestDto
-): Promise<number> {
+): Promise<void> {
   const content = (reviewData.content ?? "").trim();
   const rating = reviewData.rating;
 
@@ -17,25 +17,23 @@ export async function createReviewCulturalObject(
   const cleanedData: ReviewRequestDto = { content, rating };
 
   const api = await Api.getInstance();
-
-  const url = `/reviews/cultural-object/${culturalObjectId}`;
-  console.log("POST", url);
+  const url = `/reviews/${reviewId}`;
+  console.log("PUT", url);
   console.log("Body:", JSON.stringify(cleanedData));
 
   try {
-    const response = await api.post<ReviewRequestDto, number>(cleanedData, { url });
+    await api.put(cleanedData, { url });
 
-    console.log("Review creada con ID:", response.data);
-    return response.data;
+    console.log(`Review ${reviewId} actualizada correctamente.`);
   } catch (error: any) {
-    console.error("Error creando review:", error);
+    console.error("Error actualizando review:", error);
     const status = error.response?.status;
     const data = error.response?.data;
 
     if (status === 400) {
       if (data?.message?.includes("Validation failed"))
         throw new Error(
-          "El comentario no cumple con los requisitos de validación. Asegúrate de que tenga al menos 10 caracteres y sea apropiado."
+          "La review no cumple con los requisitos de validación. Revisa el contenido y la calificación."
         );
       if (data?.error?.includes("ofensivo") || data?.error?.includes("inapropiado"))
         throw new Error(
@@ -45,9 +43,15 @@ export async function createReviewCulturalObject(
         throw new Error("El comentario no puede estar vacío.");
     }
 
+    if (status === 403 || status === 401)
+      throw new Error("No tienes permisos para editar esta reseña.");
+
+    if (status === 404)
+      throw new Error("La reseña no existe o ya fue eliminada.");
+
     if (data?.error) throw new Error(data.error);
     if (data?.message) throw new Error(data.message);
 
-    throw new Error("Error al crear el comentario. Inténtalo de nuevo.");
+    throw new Error("Error al actualizar la reseña. Inténtalo de nuevo.");
   }
 }
