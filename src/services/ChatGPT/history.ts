@@ -3,9 +3,9 @@ import Api from "@services/api";
 export async function getMuseumHistory(goalId: number) {
   try {
     const api = await Api.getInstance();
-    const response = await api.post<void, { reply: string }>(
+    const response = await api.post<void, { reply: String[] }>(
       undefined,
-      { url: `/gpt/museum-history/${goalId}` }
+      { url: `/gemma/museum-history/${goalId}` }
     );
     return response;
   } catch (error: any) {

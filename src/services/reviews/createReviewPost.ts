@@ -1,8 +1,8 @@
 import { ReviewRequestDto } from "@interfaces/reviews/ReviewRequest";
 import Api from "@services/api";
 
-export async function createReviewCulturalObject(
-  culturalObjectId: number,
+export async function createReviewPost(
+  postId: number,
   reviewData: ReviewRequestDto
 ): Promise<number> {
   const content = (reviewData.content ?? "").trim();
@@ -18,7 +18,7 @@ export async function createReviewCulturalObject(
 
   const api = await Api.getInstance();
 
-  const url = `/reviews/cultural-object/${culturalObjectId}`;
+  const url = `/reviews/post/${postId}`;
   console.log("POST", url);
   console.log("Body:", JSON.stringify(cleanedData));
 

@@ -115,42 +115,50 @@ export default function MuseumScreen() {
     }
   }, []); 
 
-  const handleSubmitMuseum = async (data: any) => {
-    setFormLoading(true);
-    try {
-      const { images, ...museumData } = data;
-      
-      if (editMode && editingMuseum) {
-        await putUpdateMuseum(editingMuseum.id, museumData);
-        if (images?.length > 0) {
-          for (const img of images) {
-            if (!img.id) {
-              await uploadMuseumPictures(editingMuseum.id, img.uri);
-            }
-          }
-        }
-        showSuccess('Museo actualizado correctamente');
-      } else {
-        const museum = await createMuseum(museumData);
-        if (images?.length > 0) {
-          for (const img of images) {
-            await uploadMuseumPictures(museum.id, img.uri);
-          }
-        }
-        showSuccess('Museo creado correctamente');
+const handleSubmitMuseum = async (data: any) => {
+  setFormLoading(true);
+  try {
+    const { images, ...museumData } = data;
+
+    if (editMode && editingMuseum) {
+      await putUpdateMuseum(editingMuseum.id, museumData);
+
+      const newUris = (images || [])
+        .filter((img: any) => !img.id) 
+        .map((img: any) => img.uri)
+        .filter(Boolean);
+
+      if (newUris.length > 0) {
+        await uploadMuseumPictures(editingMuseum.id, newUris);
       }
-      
-      setShowForm(false);
-      setEditMode(false);
-      setEditingMuseum(null);
-      await loadMuseums(currentPage);
-    } catch (e) {
-      const message = editMode ? 'No se pudo actualizar el museo' : 'No se pudo crear el museo';
-      showError(message);
-    } finally {
-      setFormLoading(false);
+
+      showSuccess('Museo actualizado correctamente');
+    } else {
+      const museum = await createMuseum(museumData);
+
+      const uris = (images || [])
+        .map((img: any) => img.uri)
+        .filter(Boolean);
+
+      if (uris.length > 0) {
+        await uploadMuseumPictures(museum.id, uris); 
+      }
+
+      showSuccess('Museo creado correctamente');
     }
-  };
+
+    setShowForm(false);
+    setEditMode(false);
+    setEditingMuseum(null);
+    await loadMuseums(currentPage);
+  } catch (e) {
+    const message = editMode ? 'No se pudo actualizar el museo' : 'No se pudo crear el museo';
+    showError(message);
+  } finally {
+    setFormLoading(false);
+  }
+};
+
 
   const handleEditMuseum = useCallback((museum: MuseumResponse) => {
     setEditingMuseum(museum);
