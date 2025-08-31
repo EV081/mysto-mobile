@@ -1,20 +1,18 @@
 import Api from "@services/api";
 
-interface StartGoalResponse {
-  goalId: number;
-  message: string;
-}
-
 export async function startGoals(
   museumId: number,
   latitude: number,
   longitude: number
-): Promise<number> {
+): Promise<void> {
   const api = await Api.getInstance();
-  const res = await api.post<void, StartGoalResponse>(
+  await api.post<undefined, void>(
     undefined,
-    { url: `/goals/start/${museumId}?latitude=${latitude}&longitude=${longitude}` }
+    { url: `/goals/start/${museumId}`, params: { latitude, longitude } }
   );
-
-  return res.data.goalId;
+  // opcional: verifica status==201 dentro de tu wrapper Api
 }
+
+
+
+
