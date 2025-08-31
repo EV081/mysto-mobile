@@ -4,15 +4,17 @@ export async function startGoals(
   museumId: number,
   latitude: number,
   longitude: number
-): Promise<void> {
+): Promise<number> {
   const api = await Api.getInstance();
-  await api.post<undefined, void>(
+
+  const response = await api.post<undefined, number>(
     undefined,
     { url: `/goals/start/${museumId}`, params: { latitude, longitude } }
   );
-  // opcional: verifica status==201 dentro de tu wrapper Api
-}
 
+  // tu wrapper devuelve un AxiosResponse, así que extraemos el body:
+  return response.data;
+}
 
 
 
