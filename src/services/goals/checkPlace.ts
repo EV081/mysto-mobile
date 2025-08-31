@@ -6,8 +6,9 @@ export async function checkPlace(
   longitude: number
 ): Promise<boolean> {
   const api = await Api.getInstance();
-  const response = await api.get<void, boolean>({
-    url: `/goals/check/${museumId}?latitude=${latitude}&longitude=${longitude}`,
+  const res = await api.get<void, boolean>({
+    url: `/goals/check/${museumId}`,
+    params: { latitude, longitude },
   });
-  return response.data;
+  return res.data;
 }

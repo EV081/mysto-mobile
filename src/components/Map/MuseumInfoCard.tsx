@@ -86,6 +86,7 @@ function MuseumInfoCard({
     if (!museum) return;
     navigation.navigate(adventureScreenName, {
       museumId: museum.id,
+      museumName: museum.name,
       museumLocation: {
         latitude: museum.latitude,
         longitude: museum.longitude,
@@ -121,13 +122,17 @@ function MuseumInfoCard({
 
         {/* Botones SOLO con íconos */}
         <View style={styles.actions}>
-          {/* Abrir Maps externo */}
+          {/* RUTA EN EL MAPA (toggle) */}
           <Pressable
-            style={styles.iconBtn}
-            onPress={goDirections}
+            style={[styles.iconBtn, routeDisabled && { opacity: 0.4 }]}
+            onPress={routeDisabled ? undefined : onToggleRoute}
             android_ripple={{ color: 'rgba(255,255,255,0.15)', borderless: true }}
           >
-            <Ionicons name="navigate" size={22} color="#fff" />
+            <MaterialCommunityIcons
+              name="routes"
+              size={22}
+              color={routeActive ? '#4caf50' : '#fff'}
+            />
           </Pressable>
 
           {/* Info */}
@@ -148,18 +153,15 @@ function MuseumInfoCard({
             <MaterialCommunityIcons name="rocket-launch" size={22} color="#fff" />
           </Pressable>
 
-          {/* RUTA EN EL MAPA (toggle) */}
+          {/* Abrir Maps externo */}
           <Pressable
-            style={[styles.iconBtn, routeDisabled && { opacity: 0.4 }]}
-            onPress={routeDisabled ? undefined : onToggleRoute}
+            style={styles.iconBtn}
+            onPress={goDirections}
             android_ripple={{ color: 'rgba(255,255,255,0.15)', borderless: true }}
           >
-            <MaterialCommunityIcons
-              name="routes"
-              size={22}
-              color={routeActive ? '#4caf50' : '#fff'}
-            />
+            <Ionicons name="navigate" size={22} color="#fff" />
           </Pressable>
+
         </View>
       </View>
     </View>
