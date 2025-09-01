@@ -116,22 +116,29 @@ export default function GoalsScreen() {
     return (
       <TouchableOpacity
         key={object.id}
-        style={[styles.objectCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+        style={[
+          styles.objectCard,
+          {
+            backgroundColor: colors.cardBackground,
+            borderColor: colors.border,
+            shadowColor: COLORS.card.shadow,
+          },
+        ]}
         onPress={() => handleObjectPress(object)}
-        activeOpacity={0.8}
+        activeOpacity={0.85}
       >
         <View style={styles.objectHeader}>
           <Text style={[styles.objectTitle, { color: colors.text }]}>{object.name}</Text>
 
           {object.isDiscovered ? (
-            <View style={styles.badgeUnlocked}>
-              <Ionicons name="checkmark-circle" size={18} color="#fff" />
-              <Text style={styles.badgeText}>DESCUBIERTO</Text>
+            <View style={[styles.badgeUnlocked, { backgroundColor: colors.buttonBackground }]}>
+              <Ionicons name="checkmark-circle" size={18} color={colors.buttonText} />
+              <Text style={[styles.badgeText, { color: colors.buttonText }]}>DESCUBIERTO</Text>
             </View>
           ) : (
-            <View style={styles.badgeLocked}>
-              <Ionicons name="lock-closed" size={16} color={COLORS.button.primary} />
-              <Text style={[styles.badgeTextLocked, { color: COLORS.button.primary }]}>POR DESCUBRIR</Text>
+            <View style={[styles.badgeLocked, { borderColor: colors.buttonBackground }]}>
+              <Ionicons name="lock-closed" size={16} color={colors.buttonBackground} />
+              <Text style={[styles.badgeTextLocked, { color: colors.buttonBackground }]}>POR DESCUBRIR</Text>
             </View>
           )}
         </View>
@@ -143,14 +150,16 @@ export default function GoalsScreen() {
             style={[
               styles.lockPanel,
               {
-                borderColor: COLORS.button.primary,
+                borderColor: colors.buttonBackground,
                 backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)',
               },
             ]}
           >
-            <Ionicons name="lock-closed" size={36} color={COLORS.button.primary} />
-            <Text style={[styles.lockText, { color: COLORS.button.primary }]}>POR DESCUBRIR</Text>
-            <Text style={[styles.lockHint, { color: colors.textSecondary }]}>Encuentra pistas para desbloquear la imagen</Text>
+            <Ionicons name="lock-closed" size={36} color={colors.buttonBackground} />
+            <Text style={[styles.lockText, { color: colors.buttonBackground }]}>POR DESCUBRIR</Text>
+            <Text style={[styles.lockHint, { color: colors.textSecondary }]}>
+              Encuentra pistas para desbloquear la imagen
+            </Text>
           </View>
         )}
 
@@ -164,7 +173,7 @@ export default function GoalsScreen() {
           </Text>
         )}
 
-        <View style={styles.cardFooter}>
+        <View style={[styles.cardFooter, { borderTopColor: colors.border }]}>
           <Text style={[styles.objectType, { color: colors.textSecondary }]}>{object.type}</Text>
           <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
         </View>
@@ -182,7 +191,7 @@ export default function GoalsScreen() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {isLoading ? (
           <View style={styles.loadingContainer}>
-            <Ionicons name="hourglass-outline" size={48} color={COLORS.button.primary} />
+            <Ionicons name="hourglass-outline" size={48} color={colors.buttonBackground} />
             <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Cargando metas...</Text>
           </View>
         ) : goalObjects.length > 0 ? (
@@ -221,26 +230,71 @@ const styles = StyleSheet.create({
 
   objectsContainer: { paddingVertical: 16 },
 
-  objectCard: { marginBottom: 16, padding: 16, borderRadius: 12, borderWidth: 1, elevation: 2 },
-  objectHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  objectTitle: { fontSize: 18, fontWeight: '600', flex: 1, paddingRight: 8 },
+  objectCard: {
+    marginBottom: 16,
+    padding: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    // Sombras suaves (iOS/Android)
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+  },
 
-  badgeLocked: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4, paddingHorizontal: 8, borderRadius: 999, borderWidth: 1.5, borderColor: COLORS.button.primary },
-  badgeUnlocked: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4, paddingHorizontal: 8, borderRadius: 999, backgroundColor: COLORS.button.primary },
-  badgeText: { marginLeft: 6, color: '#fff', fontSize: 12, fontWeight: '700' },
-  badgeTextLocked: { marginLeft: 6, fontSize: 12, fontWeight: '700' },
+  objectHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  objectTitle: { fontSize: 18, fontWeight: '700', flex: 1, paddingRight: 8 },
 
-  objectImg: { width: '100%', height: 160, borderRadius: 10, marginBottom: 10 },
+  badgeLocked: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    borderWidth: 1.5,
+  },
+  badgeUnlocked: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+  },
+  badgeText: { marginLeft: 6, fontSize: 12, fontWeight: '800', letterSpacing: 0.3 },
+  badgeTextLocked: { marginLeft: 6, fontSize: 12, fontWeight: '800', letterSpacing: 0.3 },
 
-  lockPanel: { height: 160, borderRadius: 10, borderWidth: 2, borderStyle: 'dashed', marginBottom: 10, alignItems: 'center', justifyContent: 'center', gap: 6 },
-  lockText: { fontSize: 12, fontWeight: '800', letterSpacing: 1 },
-  lockHint: { fontSize: 12, opacity: 0.8 },
+  objectImg: { width: '100%', height: 168, borderRadius: 10, marginBottom: 12 },
 
-  objectDesc: { fontSize: 14, lineHeight: 20 },
+  lockPanel: {
+    height: 168,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    marginBottom: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  lockText: { fontSize: 12, fontWeight: '900', letterSpacing: 1 },
+  lockHint: { fontSize: 12, opacity: 0.85, textAlign: 'center' },
+
+  objectDesc: { fontSize: 14, lineHeight: 20, textAlign: 'justify', includeFontPadding: false },
   moreClues: { marginTop: 6, fontSize: 12 },
 
-  cardFooter: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.08)', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  objectType: { fontSize: 12, fontWeight: '600' },
+  cardFooter: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  objectType: { fontSize: 12, fontWeight: '700' },
 
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 },
   emptyText: { marginTop: 16, fontSize: 16, textAlign: 'center' },

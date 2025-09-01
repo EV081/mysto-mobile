@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -6,12 +6,8 @@ import {
   useColorScheme,
   Image,
   TouchableOpacity,
-  Animated,
-  Easing,
   Dimensions,
   ActivityIndicator,
-  NativeSyntheticEvent,
-  NativeScrollEvent,
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -98,24 +94,6 @@ function extractIntroAndClues(reply: string): { introTexts: string[]; clues: His
   return { introTexts: lines, clues: [] };
 }
 
-function toMarqueeLines(texts: string[], max = 90): string[] {
-  const out: string[] = [];
-  for (const t0 of texts) {
-    const t = (t0 ?? '').trim();
-    if (!t) continue;
-    if (t.length <= max) { out.push(t); continue; }
-    let start = 0;
-    while (start < t.length) {
-      const end = Math.min(start + max, t.length);
-      let cut = t.lastIndexOf(' ', end);
-      if (cut <= start) cut = end;
-      out.push(t.slice(start, cut).trim());
-      start = cut + 1;
-    }
-  }
-  return Array.from(new Set(out));
-}
-
 function extractReplyString(res: any): string | null {
   if (!res) return null;
   const data = res?.data ?? res;
@@ -151,116 +129,9 @@ export default function AventureScreen() {
     autostart: true,
   });
 
-  // === Auto + manual scroll con Animated.ScrollView ===
-  // ✅ ref tipado a ScrollView (no al componente animado)
-  const scrollRef = useRef<ScrollView | null>(null);
-  const autoY = useRef(new Animated.Value(0)).current;
-  const autoAnimRef = useRef<Animated.CompositeAnimation | null>(null);
-  const valueListenerId = useRef<string | null>(null);
-  const resumeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // 👇 NUEVO: pausas y timer de ciclo
-  const PRE_DELAY_MS  = 1200; // espera ANTES de empezar
-  const POST_DELAY_MS = 1200; // espera DESPUÉS de terminar
-  const cycleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Helper seguro para scrollTo
-  const scrollToY = (y: number, animated = false) => {
-    const node: any = scrollRef.current;
-    if (!node) return;
-    if (typeof node.scrollTo === 'function') {
-      node.scrollTo({ y, animated });
-    } else if (typeof node.getNode === 'function' && typeof node.getNode().scrollTo === 'function') {
-      node.getNode().scrollTo({ y, animated });
-    }
-  };
-
-  // Tamaños / tipografía
+  // Tamaño responsive del panel de texto
   const { height: screenH, width: screenW } = Dimensions.get('window');
   const DIALOG_HEIGHT = Math.min(Math.max(screenH * 0.36, 320), 600);
-  const ITEM_SPACING = 10;
-  const LINE_HEIGHT = 32;
-  const FONT_SIZE = 20;
-  const ITEM_HEIGHT = LINE_HEIGHT + ITEM_SPACING;
-  const SPACER_HEIGHT = 48;
-
-  const baseLines = useMemo(() => (dialogLines.length ? dialogLines : FALLBACK_LINES), [dialogLines]);
-  const linesBlockHeight = useMemo(() => baseLines.length * ITEM_HEIGHT, [baseLines.length]);
-  const loopTargetY = useMemo(() => linesBlockHeight + SPACER_HEIGHT, [linesBlockHeight]);
-  const SPEED_PX_S = 18;
-
-  // 👇 MODIFICADO: incluir delays antes y después
-  const startAutoFrom = (fromY: number) => {
-    stopAuto();
-    scrollToY(fromY, false);
-    autoY.setValue(fromY);
-
-    cycleTimer.current = setTimeout(() => {
-      valueListenerId.current = autoY.addListener(({ value }) => {
-        scrollToY(value, false);
-      });
-
-      const remaining = Math.max(loopTargetY - fromY, 0);
-      const duration = remaining > 0 ? (remaining / SPEED_PX_S) * 1000 : 0;
-
-      const run = Animated.timing(autoY, {
-        toValue: loopTargetY,
-        duration: Math.max(duration, 400),
-        easing: Easing.linear,
-        useNativeDriver: false,
-      });
-
-      autoAnimRef.current = run;
-      run.start(({ finished }) => {
-        autoY.removeAllListeners();
-        valueListenerId.current = null;
-        if (!finished) return; // cancelado (usuario)
-
-        cycleTimer.current = setTimeout(() => {
-          scrollToY(0, false);
-          startAutoFrom(0);
-        }, POST_DELAY_MS);
-      });
-    }, PRE_DELAY_MS);
-  };
-
-  // 👇 MODIFICADO: limpia también el timer de ciclo
-  const stopAuto = () => {
-    autoAnimRef.current?.stop();
-    autoAnimRef.current = null;
-    if (valueListenerId.current) {
-      autoY.removeListener(valueListenerId.current);
-      valueListenerId.current = null;
-    } else {
-      autoY.removeAllListeners();
-    }
-    if (resumeTimer.current) {
-      clearTimeout(resumeTimer.current);
-      resumeTimer.current = null;
-    }
-    if (cycleTimer.current) {
-      clearTimeout(cycleTimer.current);
-      cycleTimer.current = null;
-    }
-  };
-
-  useEffect(() => {
-    if (loadingHistory || isInitializing) return;
-    if (!baseLines.length || loopTargetY <= 0) return;
-    startAutoFrom(0);
-    return () => stopAuto();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [baseLines, loopTargetY, loadingHistory, isInitializing]);
-
-  const handleScrollBeginDrag = (_e: NativeSyntheticEvent<NativeScrollEvent>) => stopAuto();
-
-  // 👇 MODIFICADO: reanudar tras drag con el mismo PRE_DELAY_MS
-  const handleScrollEndDrag = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const y = e.nativeEvent.contentOffset.y || 0;
-    if (resumeTimer.current) clearTimeout(resumeTimer.current);
-    if (cycleTimer.current) clearTimeout(cycleTimer.current);
-    cycleTimer.current = setTimeout(() => startAutoFrom(Math.min(y, loopTargetY - 1)), PRE_DELAY_MS);
-  };
 
   // Imagen header
   useEffect(() => {
@@ -311,9 +182,8 @@ export default function AventureScreen() {
         const replyString = extractReplyString(res) ?? '';
         const { introTexts, clues } = extractIntroAndClues(replyString);
 
-        const lines = toMarqueeLines(introTexts);
         if (alive) {
-          setDialogLines(lines.length ? lines : FALLBACK_LINES);
+          setDialogLines(introTexts.length ? introTexts : FALLBACK_LINES);
           setObjectClues(clues.filter(c => c.id && typeof c.text === 'string' && c.text.trim()));
         }
       } catch {
@@ -347,6 +217,12 @@ export default function AventureScreen() {
   const headerTitle = useMemo(() => params?.museumName ?? 'Aventura Cultural', [params?.museumName]);
   const showSpinner = loadingHistory || isInitializing;
 
+  // Un solo párrafo justificado (evita huecos entre “líneas”)
+  const introParagraph = useMemo(
+    () => (dialogLines.length ? dialogLines : FALLBACK_LINES).join(' '),
+    [dialogLines]
+  );
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
@@ -356,7 +232,7 @@ export default function AventureScreen() {
       {museumImage ? (
         <Image source={{ uri: museumImage }} style={styles.hero} resizeMode="cover" />
       ) : (
-        <View style={[styles.heroFallback, { backgroundColor: colors.cardBackground }]}>
+        <View style={[styles.heroFallback, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
           <Ionicons name="image-outline" size={48} color={colors.text} />
           <Text style={[styles.fallbackText, { color: colors.textSecondary }]}>Imagen del museo</Text>
         </View>
@@ -368,10 +244,10 @@ export default function AventureScreen() {
           { backgroundColor: colors.cardBackground, borderColor: colors.border, height: DIALOG_HEIGHT, minHeight: 320 },
         ]}
       >
-        <View style={styles.ribbon}>
-          <Ionicons name="sparkles-outline" size={16} color={COLORS.button.primary} />
-          <Text style={[styles.ribbonText, { color: COLORS.button.primary }]}>HISTORIA</Text>
-          <Ionicons name="sparkles-outline" size={16} color={COLORS.button.primary} />
+        <View style={[styles.ribbon, { borderColor: COLORS.primary }]}>
+          <Ionicons name="sparkles-outline" size={16} color={COLORS.primary} />
+          <Text style={[styles.ribbonText, { color: COLORS.primary }]}>HISTORIA</Text>
+          <Ionicons name="sparkles-outline" size={16} color={COLORS.primary} />
         </View>
 
         {showSpinner ? (
@@ -380,35 +256,36 @@ export default function AventureScreen() {
             <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Cargando historia…</Text>
           </View>
         ) : (
-          <Animated.ScrollView
-            ref={scrollRef}
+          <ScrollView
             showsVerticalScrollIndicator={false}
-            scrollEventThrottle={16}
-            onScrollBeginDrag={handleScrollBeginDrag}
-            onScrollEndDrag={handleScrollEndDrag}
-            scrollEnabled
-            contentContainerStyle={{ paddingTop: 8, paddingBottom: 8 }}
+            contentContainerStyle={{ paddingVertical: 8 }}
           >
-            {baseLines.map((text, idx) => (
-              <Text key={`a-${idx}`} style={[styles.dialogLine, { color: colors.text, lineHeight: 32, fontSize: 20 }]}>
-                {text}
-              </Text>
-            ))}
-            <View style={{ height: SPACER_HEIGHT }} />
-            {baseLines.map((text, idx) => (
-              <Text key={`b-${idx}`} style={[styles.dialogLine, { color: colors.text, lineHeight: 32, fontSize: 20 }]}>
-                {text}
-              </Text>
-            ))}
-          </Animated.ScrollView>
+            <Text
+              style={[styles.dialogParagraph, { color: colors.text }]}
+              // iOS: cortes de palabra más agradables
+              // @ts-ignore
+              hyphenationFactor={1.0}
+            >
+              {introParagraph}
+            </Text>
+          </ScrollView>
         )}
       </View>
 
-      <TouchableOpacity style={[styles.goButton, { backgroundColor: COLORS.button.primary }]} onPress={onPressGo}>
-        <Text style={styles.goButtonText}>GO</Text>
+      <TouchableOpacity
+        style={[styles.goButton, { backgroundColor: colors.buttonBackground }]}
+        onPress={onPressGo}
+      >
+        <Text style={[styles.goButtonText, { color: colors.buttonText }]}>GO</Text>
       </TouchableOpacity>
 
-      <Toast visible={toastVisible} message={toastMessage} type={toastType} duration={2200} onHide={() => setToastVisible(false)} />
+      <Toast
+        visible={toastVisible}
+        message={toastMessage}
+        type={toastType}
+        duration={2200}
+        onHide={() => setToastVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -421,24 +298,59 @@ const styles = StyleSheet.create({
   title: { fontSize: 28, fontWeight: 'bold', textAlign: 'center' },
 
   hero: { width: '100%', height: width * 0.56, borderRadius: 12 },
-  heroFallback: { width: '100%', height: width * 0.56, borderRadius: 12, marginBottom: 16, borderColor: COLORS.black, borderWidth: 1 },
+  heroFallback: {
+    width: '100%', height: width * 0.56, borderRadius: 12, marginBottom: 16,
+    borderWidth: 1,
+  },
   fallbackText: { marginTop: 8, fontSize: 12 },
 
   dialogContainer: {
-    marginTop: 24, paddingHorizontal: 16, paddingVertical: 12, borderRadius: 16, borderWidth: 1, overflow: 'hidden',
-    shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 3,
+    marginTop: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: 'hidden',
+    shadowColor: COLORS.card.shadow,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
   },
 
   ribbon: {
-    alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 12, paddingVertical: 4, borderRadius: 999, borderWidth: 1,
-    borderColor: COLORS.button.primary, marginBottom: 8,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    marginBottom: 8,
   },
   ribbonText: { fontSize: 12, fontWeight: '900', letterSpacing: 1.2 },
 
-  // 👇 MODIFICADO: texto justificado
-  dialogLine: { fontSize: 20, marginBottom: 10, textAlign: 'justify', fontWeight: '600', letterSpacing: 0.2 },
+  // Párrafo justificado sin “huecos”
+  dialogParagraph: {
+    fontSize: 20,
+    lineHeight: 28,              // ~1.4x
+    textAlign: 'justify',
+    letterSpacing: 0.2,
+    includeFontPadding: false,   // ANDROID: elimina padding extra vertical de la fuente
+    // @ts-ignore
+    textBreakStrategy: 'balanced' // ANDROID: cortes más agradables
+  },
 
-  goButton: { position: 'absolute', bottom: 24, left: 16, right: 16, paddingVertical: 16, borderRadius: 999, alignItems: 'center', elevation: 2 },
-  goButtonText: { color: '#fff', fontSize: 20, fontWeight: '800', letterSpacing: 2 },
+  goButton: {
+    position: 'absolute',
+    bottom: 24,
+    left: 16,
+    right: 16,
+    paddingVertical: 16,
+    borderRadius: 999,
+    alignItems: 'center',
+    elevation: 2,
+  },
+  goButtonText: { fontSize: 20, fontWeight: '800', letterSpacing: 2 },
 });
