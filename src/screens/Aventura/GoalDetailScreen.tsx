@@ -57,7 +57,10 @@ export default function GoalDetailScreen() {
   });
 
   const requestCameraPermission = async () => {
+    console.log('Solicitando permisos de cámara...');
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    console.log('Estado de permisos de cámara:', status);
+    
     if (status !== 'granted') {
       Alert.alert(
         'Permisos de Cámara',
@@ -70,10 +73,15 @@ export default function GoalDetailScreen() {
   };
 
   const openCamera = async () => {
+    console.log('Abriendo cámara...');
     const hasPermission = await requestCameraPermission();
-    if (!hasPermission) return;
+    if (!hasPermission) {
+      console.log('Permisos de cámara denegados');
+      return null;
+    }
 
     try {
+      console.log('Lanzando cámara...');
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
@@ -81,8 +89,13 @@ export default function GoalDetailScreen() {
         quality: 0.8,
       });
 
+      console.log('Resultado de cámara:', result);
+      
       if (!result.canceled && result.assets && result.assets[0]) {
+        console.log('Imagen capturada:', result.assets[0].uri);
         return result.assets[0].uri;
+      } else {
+        console.log('Captura cancelada o sin imagen');
       }
     } catch (error) {
       console.error('Error abriendo cámara:', error);
@@ -133,6 +146,8 @@ export default function GoalDetailScreen() {
   };
 
   const handleCameraPress = async () => {
+    console.log('Botón de cámara presionado');
+    
     if (wasDiscovered) {
       Alert.alert(
         'Objeto ya descubierto',
@@ -142,24 +157,44 @@ export default function GoalDetailScreen() {
       return;
     }
 
-    setIsValidating(true);
+    // Versión simplificada para pruebas
     try {
-      // Primero validar ubicación
-      const locationValid = await validateLocation();
-      if (!locationValid) {
+      console.log('Probando apertura de cámara...');
+      
+      // Verificar si ImagePicker está disponible
+      if (!ImagePicker) {
+        console.error('ImagePicker no está disponible');
+        Alert.alert('Error', 'ImagePicker no está disponible');
         return;
       }
 
-      // Abrir cámara y capturar imagen
-      const imageUri = await openCamera();
-      if (imageUri) {
-        await validateObjectImage(imageUri);
+      // Solicitar permisos directamente
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      console.log('Estado de permisos:', status);
+      
+      if (status !== 'granted') {
+        Alert.alert('Permisos', 'Se necesitan permisos de cámara');
+        return;
       }
+
+      // Intentar abrir la cámara
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      console.log('Resultado de cámara:', result);
+      
+      if (!result.canceled && result.assets && result.assets[0]) {
+        Alert.alert('Éxito', 'Imagen capturada: ' + result.assets[0].uri);
+      } else {
+        Alert.alert('Info', 'Captura cancelada');
+      }
+      
     } catch (error) {
-      console.error('Error en proceso de validación:', error);
-      Alert.alert('Error', 'Ocurrió un error durante la validación');
-    } finally {
-      setIsValidating(false);
+      console.error('Error en cámara:', error);
+      Alert.alert('Error', 'Error al abrir cámara: ' + error);
     }
   };
 
@@ -453,7 +488,7 @@ const styles = StyleSheet.create({
   hologramStripe: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, opacity: 0.5 },
 
   descriptionSection: { borderWidth: 1.5, borderRadius: 8, padding: 12, marginBottom: 12, minHeight: 140, maxHeight: 240 },
-  descriptionText: { fontSize: 14, lineHeight: 22, textAlign: 'justify', includeFontPadding: false },
+  descriptionText: { fontSize: 14, lineHeight: 20, textAlign: 'justify', includeFontPadding: false, paddingTop: 0 },
 
   statsSection: {
     flexDirection: 'row',
