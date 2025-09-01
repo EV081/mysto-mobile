@@ -14,6 +14,7 @@ import MuseumforOneScreen from '@screens/MuseumforOneScreen';
 import RedSocialScreen from '@screens/RedSocialScreen';
 import AventureScreen from '@screens/AventureScreen';
 import ObjectDetailScreen from '@screens/ObjectDetailScreen';
+import PostDetailScreen from '@screens/PostDetailScreen';
 import GoalsScreen from '@screens/Aventura/GoalsScreen';
 import GoalDetailScreen from '@screens/Aventura/GoalDetailScreen';
 const Stack = createNativeStackNavigator();
@@ -68,6 +69,7 @@ export default function AppNavigator() {
             <Stack.Screen name="Goals" component={GoalsScreen}/>
             <Stack.Screen name="GoalDetail" component={GoalDetailScreen}/>
             <Stack.Screen name="ObjectDetail" component={ObjectDetailScreen} />
+            <Stack.Screen name="PostDetail" component={PostDetailScreen} />
           </>
         )}
       </Stack.Navigator>

@@ -91,9 +91,12 @@ export default class Api {
   public async request<RequestType, ResponseType>(config: AxiosRequestConfig) {
     const headers: RawAxiosRequestHeaders = {
       'Content-Type': 'application/json',
-      Authorization: this._authorization ? `Bearer ${this._authorization}` : '',
       ...config.headers,
     };
+    // Añadir Authorization solo si existe un token válido. Evita enviar 'Authorization: ""'.
+    if (this._authorization) {
+      headers.Authorization = `Bearer ${this._authorization}`;
+    }
     const configOptions: AxiosRequestConfig = {
       ...config,
       baseURL: this._basePath,

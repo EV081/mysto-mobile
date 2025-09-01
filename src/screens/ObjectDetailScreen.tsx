@@ -10,9 +10,10 @@ import {
   Alert,
   Dimensions,
   TextInput,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Card } from 'react-native-paper';
+import { Card, IconButton, Button, Dialog, Portal } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { RouteProp, useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
@@ -21,14 +22,17 @@ import { CulturalObjectResponse } from '@interfaces/cuturalObject/CulturalObject
 import { CulturalObjectType } from '@interfaces/cuturalObject/CulturalObjectType';
 import { AlbumResponseDto } from '../interfaces/album/AlbumResponse';
 import { getCulturalObjectInfo } from '@services/culturalObject/getCulturalObjectInfo';
+import { deleteCulturalObject } from '@services/culturalObject/deleteCulturalObject';
 import { getThemeColors } from '@constants/colors';
 import { getReviewsByCulturalObject } from '@services/reviews/getReviewsByCulturalObject';
 import { createReviewCulturalObject } from '@services/reviews/createReviewCulturalObject';
 import { ReviewResponseDto } from '@interfaces/reviews/ReviewResponse';
 import { useAuthState } from '../hooks/useAuth';
+import { getRoleBasedOnToken } from '@utils/getRoleBasedOnToken';
 import SimilarObjectsButton from '@components/ImageRecognition/SimilarObjectsButton';
 import { CulturalObjectsList } from '@components/CulturalObjectsList';
 import { COLORS } from '@constants/colors';
+import CulturalObjectForm from '@components/CulturalObjectForm';
 
 type ObjectDetailRouteProp = RouteProp<{
   ObjectDetail: {
@@ -77,6 +81,15 @@ export default function ObjectDetailScreen() {
   const [similarObjects, setSimilarObjects] = useState<CulturalObjectResponse[]>([]);
   const [similarityMap, setSimilarityMap] = useState<Record<number, number>>({});
   const [loadingSimilar, setLoadingSimilar] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  
+  // Estados para el formulario de edición
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editingObject, setEditingObject] = useState<CulturalObjectResponse | null>(null);
+
+  // Verificar si el usuario es COLLAB
+  const isCollab = session ? getRoleBasedOnToken(session) === 'COLLAB' : false;
 
   const handleBackPress = () => {
     if (navigation.canGoBack()) {
@@ -221,6 +234,67 @@ export default function ObjectDetailScreen() {
     );
   };
 
+  const handleDeleteObject = async () => {
+    try {
+      setDeleting(true);
+      await deleteCulturalObject(albumItem.id);
+      Alert.alert(
+        'Objeto eliminado',
+        'El objeto cultural ha sido eliminado correctamente',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              setShowDeleteDialog(false);
+              handleBackPress();
+            },
+          },
+        ]
+      );
+    } catch (error: any) {
+      console.error('Error deleting object:', error);
+      Alert.alert('Error', error.message || 'No se pudo eliminar el objeto');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const confirmDelete = () => {
+    Alert.alert(
+      'Confirmar eliminación',
+      '¿Estás seguro de que quieres eliminar este objeto cultural? Esta acción no se puede deshacer.',
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: () => setShowDeleteDialog(true),
+        },
+      ]
+    );
+  };
+
+  const handleEditObject = () => {
+    if (objectDetail) {
+      setEditingObject(objectDetail);
+      setShowEditForm(true);
+    }
+  };
+
+  const handleEditSuccess = () => {
+    setShowEditForm(false);
+    setEditingObject(null);
+    loadObjectDetail(); // Recargar datos después de editar exitosamente
+  };
+
+  const handleEditCancel = () => {
+    setShowEditForm(false);
+    setEditingObject(null);
+  };
+
   useFocusEffect(
     useCallback(() => {
       loadObjectDetail();
@@ -342,12 +416,32 @@ export default function ObjectDetailScreen() {
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: COLORS.background }]}>
       <View style={styles.header}>
-      <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
-        <Ionicons name="arrow-back" size={24} color={colors.text} />
-      </TouchableOpacity>
-      <TouchableOpacity onPress={handleBackPress} style={styles.titleButton}>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>{getBackButtonText()}</Text>
-      </TouchableOpacity>
+        <TouchableOpacity onPress={handleBackPress} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
+        </TouchableOpacity>
+        <TouchableOpacity onPress={handleBackPress} style={styles.titleButton}>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>{getBackButtonText()}</Text>
+        </TouchableOpacity>
+        
+        {/* Botones de acción para usuarios COLLAB */}
+        {isCollab && (
+          <View style={styles.actionButtons}>
+            <IconButton
+              icon="pencil"
+              size={20}
+              iconColor={COLORS.primary}
+              onPress={handleEditObject}
+              style={styles.actionButton}
+            />
+            <IconButton
+              icon="delete"
+              size={20}
+              iconColor="#ef4444"
+              onPress={confirmDelete}
+              style={styles.actionButton}
+            />
+          </View>
+        )}
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -595,6 +689,67 @@ export default function ObjectDetailScreen() {
           </Card>
         </View>
       </ScrollView>
+
+      {/* Delete Confirmation Dialog */}
+      <Portal>
+        <Dialog visible={showDeleteDialog} onDismiss={() => setShowDeleteDialog(false)}>
+          <Dialog.Title>Eliminar objeto cultural</Dialog.Title>
+          <Dialog.Content>
+            <Text>
+              ¿Estás seguro de que quieres eliminar "{objectDetail?.name}"? Esta acción no se puede deshacer.
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setShowDeleteDialog(false)} disabled={deleting}>
+              Cancelar
+            </Button>
+            <Button 
+              onPress={handleDeleteObject} 
+              textColor="#ef4444"
+              loading={deleting}
+              disabled={deleting}
+            >
+              Eliminar
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+
+      {/* Edit Form Modal */}
+      <Modal
+        visible={showEditForm}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={handleEditCancel}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.cardBackground }]}>
+            <View style={styles.modalHeader}>
+              <TouchableOpacity onPress={handleEditCancel} style={styles.closeButton}>
+                <Ionicons name="close" size={24} color={colors.text} />
+              </TouchableOpacity>
+            </View>
+            
+            {/* Formulario completo de edición */}
+            <CulturalObjectForm
+              museumId={objectDetail?.museumId || 0}
+              culturalObjectId={editingObject?.id}
+              onSuccess={handleEditSuccess}
+              onCancel={handleEditCancel}
+              loading={false}
+              editMode={true}
+              initialData={editingObject ? {
+                id: editingObject.id,
+                name: editingObject.name,
+                points: editingObject.points,
+                coins: editingObject.coins || 0,
+                description: editingObject.description,
+                type: editingObject.type
+              } : undefined}
+            />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -867,5 +1022,44 @@ const styles = StyleSheet.create({
   sectionSubtitle: {
     fontSize: 14,
     marginBottom: 12,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    position: 'absolute',
+    top: 12,
+    right: 16,
+  },
+  actionButton: {
+    marginLeft: 10,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    width: '95%',
+    height: '90%',
+    borderRadius: 12,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+  },
+  closeButton: {
+    padding: 4,
   },
 });

@@ -11,9 +11,9 @@ import { IconButton } from 'react-native-paper';
 import { COLORS } from '@constants/colors';
 
 interface ImageGalleryProps {
-  images: { id: number; url: string }[]; // id es number
+  images: { id: number; url: string }[];
   onImagesChange: (images: { id: number; url: string }[]) => void;
-  onDeleteImage?: (id: number) => Promise<void>; // función opcional para eliminar imagen
+  onDeleteImage?: (id: number) => Promise<void>;
   title?: string;
   loading?: boolean;
   showDeleteButton?: boolean;
@@ -47,7 +47,6 @@ export default function ImageGallery({
               if (onDeleteImage) {
                 await onDeleteImage(imageId);
               } else {
-                // Si no hay función, simplemente eliminar localmente
                 const newImages = images.filter(img => img.id !== imageId);
                 onImagesChange(newImages);
               }

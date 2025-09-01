@@ -65,6 +65,7 @@ export default function ImageUploader({
         style={styles.imageButton}
         icon="image-plus"
         disabled={images.length >= maxImages}
+        labelStyle={{ color: COLORS.primary }}
       >
         {buttonText}
       </Button>

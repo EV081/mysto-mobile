@@ -14,8 +14,6 @@ import { updateCulturalObject } from '@services/culturalObject/updateCulturalObj
 import { getCulturalObjectPictures } from '@services/pictures/getCulturalObjectPictures';
 import { uploadCulturalObjectPictures } from '@services/pictures/uploadCulturalObjectPictures';
 import { deletePicture } from '@services/pictures/deletePictures';
-
-// Componentes modulares
 import TypeSelector from '@components/CulturalObjectForm/TypeSelector';
 import BasicInfoForm from '@components/CulturalObjectForm/BasicInfoForm';
 import ImageUploader from '@components/common/ImageUploader';
@@ -56,6 +54,15 @@ export default function CulturalObjectForm({
   const [existingImages, setExistingImages] = useState<any[]>([]);
   const [loadingImages, setLoadingImages] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleImagesChange = (images: any[]) => {
+    if (Array.isArray(images)) {
+      setNewImages(images);
+    } else {
+      console.warn('handleImagesChange recibió algo que no es un array:', images);
+      setNewImages([]);
+    }
+  };
 
   // Cargar imágenes existentes en modo edición
   useEffect(() => {
@@ -118,10 +125,14 @@ export default function CulturalObjectForm({
       if (editMode && culturalObjectId) {
         await updateCulturalObject(culturalObjectId, culturalObjectData);
 
-        // Subir nuevas imágenes
-        if (newImages.length > 0) {
+        if (newImages && newImages.length > 0) {
           for (const img of newImages) {
-            await uploadCulturalObjectPictures(culturalObjectId, img.uri);
+            if (img && (img.uri || img.url)) {
+              const imageUri = img.uri || img.url;
+              await uploadCulturalObjectPictures(culturalObjectId, imageUri);
+            } else {
+              console.warn('Imagen inválida detectada:', img);
+            }
           }
         }
 
@@ -131,16 +142,16 @@ export default function CulturalObjectForm({
       } else {
         const newObject = await createCulturalObject(culturalObjectData, museumId);
 
-      // Subir imágenes
-      if (newImages.length > 0) {
-        for (const img of newImages) {
-          if (img.uri) { // aseguramos que tenga uri
-            await uploadCulturalObjectPictures(Number(newObject.id), img.uri);
-          } else {
-            console.warn('Imagen sin uri detectada:', img);
+        if (newImages && newImages.length > 0) {
+          for (const img of newImages) {
+            if (img && (img.uri || img.url)) {
+              const imageUri = img.uri || img.url;
+              await uploadCulturalObjectPictures(Number(newObject.id), imageUri);
+            } else {
+              console.warn('Imagen inválida detectada:', img);
+            }
           }
         }
-      }
 
         Alert.alert('¡Éxito!', 'Objeto cultural creado correctamente.', [
           {
@@ -175,7 +186,7 @@ export default function CulturalObjectForm({
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.title}>🎨 {editMode ? 'Editar' : 'Nuevo'} Objeto Cultural</Text>
+        <Text style={styles.title}> {editMode ? 'Editar' : 'Nuevo'} Objeto Cultural</Text>
 
         <TypeSelector selectedType={type} onTypeChange={setType} />
 
@@ -202,7 +213,7 @@ export default function CulturalObjectForm({
 
         <ImageUploader
           images={newImages}
-          onImagesChange={setNewImages}
+          onImagesChange={handleImagesChange}
           title={editMode ? 'Agregar nuevas imágenes' : 'Imágenes'}
           buttonText={editMode ? 'Agregar más imágenes' : 'Agregar imágenes'}
         />

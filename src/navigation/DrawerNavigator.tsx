@@ -14,6 +14,7 @@ import UserScreen from '@screens/UserScreen';
 import AventureScreen from '@screens/AventureScreen';
 import AvatarScreen from "@screens/AvatarScreen";
 import MuseumforOneScreen from '@screens/MuseumforOneScreen';
+import PostDetailScreen from '@screens/PostDetailScreen';
 
 const Drawer = createDrawerNavigator();
 
@@ -99,6 +100,15 @@ export default function DrawerNavigator() {
         component={ObjectDetailScreen} 
         options={{ 
           drawerItemStyle: { display: 'none' }
+        }} 
+      />
+      <Drawer.Screen 
+        name="PostDetail" 
+        component={PostDetailScreen} 
+        options={{ 
+          drawerItemStyle: { display: 'none' },
+          headerShown: false,   
+          swipeEnabled: false, 
         }} 
       />
       <Drawer.Screen name= "Aventura" component={AventureScreen} options = {{title: 'Aventura'}} />
