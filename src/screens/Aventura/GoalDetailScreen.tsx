@@ -13,10 +13,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as ImagePicker from 'expo-image-picker';
 import { getThemeColors, COLORS } from '@constants/colors';
 import { useToast } from '@hooks/useToast';
 import { useLocationValidation } from '@hooks/useLocationValidation';
-import { validateObject } from '@services/imageRecognition/validateObject';
+import { validateObjectWithImage } from '@services/imageRecognition/validateObjectWithImage';
+import { validateGoal } from '@services/goals/validateGoal';
 import Toast from '@components/common/Toast';
 
 interface GoalDetailRouteParams {
@@ -46,6 +48,7 @@ export default function GoalDetailScreen() {
   const [isValidating, setIsValidating] = useState(false);
   const [wasDiscovered, setWasDiscovered] = useState(params.object.isDiscovered);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [objectDetails, setObjectDetails] = useState<any>(null);
 
   // Hook para validar ubicación
   const { validateLocation, isValidatingLocation, isLocationValid } = useLocationValidation({
@@ -53,7 +56,92 @@ export default function GoalDetailScreen() {
     userLocation,
   });
 
+  const requestCameraPermission = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert(
+        'Permisos de Cámara',
+        'Se necesitan permisos de cámara para validar el objeto.',
+        [{ text: 'Entendido' }]
+      );
+      return false;
+    }
+    return true;
+  };
+
+  const openCamera = async () => {
+    const hasPermission = await requestCameraPermission();
+    if (!hasPermission) return;
+
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        return result.assets[0].uri;
+      }
+    } catch (error) {
+      console.error('Error abriendo cámara:', error);
+      Alert.alert('Error', 'No se pudo abrir la cámara');
+    }
+    return null;
+  };
+
+  const validateObjectImage = async (imageUri: string) => {
+    try {
+      // Validar el objeto con la imagen capturada
+      const validationResult = await validateObjectWithImage(params.object.id, imageUri, 0.7);
+      
+      if (validationResult && validationResult.object) {
+        // Si la validación es exitosa, guardar los detalles del objeto
+        setObjectDetails(validationResult.object);
+        setWasDiscovered(true);
+        showCelebration(`¡Objeto desbloqueado! ${validationResult.object.name}`);
+        
+        // Validar la meta con el ID del objeto encontrado
+        try {
+          await validateGoal(params.museumId, validationResult.object.id);
+          console.log('Meta validada exitosamente');
+        } catch (goalError) {
+          console.error('Error validando meta:', goalError);
+        }
+        
+        return true;
+      }
+    } catch (error: any) {
+      console.error('Error validando objeto:', error);
+      
+      if (error?.response?.status === 404) {
+        Alert.alert(
+          'Objeto Incorrecto',
+          'La imagen no coincide con este objeto. Intenta con otra imagen.',
+          [{ text: 'Entendido' }]
+        );
+      } else {
+        Alert.alert(
+          'Error de Validación',
+          'No se pudo validar el objeto. Intenta de nuevo.',
+          [{ text: 'Entendido' }]
+        );
+      }
+    }
+    return false;
+  };
+
   const handleCameraPress = async () => {
+    if (wasDiscovered) {
+      Alert.alert(
+        'Objeto ya descubierto',
+        'Este objeto ya ha sido descubierto.',
+        [{ text: 'Entendido' }],
+      );
+      return;
+    }
+
     setIsValidating(true);
     try {
       // Primero validar ubicación
@@ -62,40 +150,14 @@ export default function GoalDetailScreen() {
         return;
       }
 
-      // Aquí se implementaría la lógica de cámara
-      // Por ahora simulamos la validación del objeto
-      if (!wasDiscovered) {
-        // Simular captura de imagen y validación
-        // En una implementación real, aquí se abriría la cámara
-        Alert.alert(
-          'Validación de Objeto',
-          'Esta funcionalidad abrirá la cámara para validar el objeto. Por ahora se simula la validación.',
-          [
-            { text: 'Cancelar', style: 'cancel' },
-            {
-              text: 'Simular Validación',
-              onPress: async () => {
-                try {
-                  // Simular validación exitosa
-                  setWasDiscovered(true);
-                  showCelebration(`¡Objeto desbloqueado! ${params.object.name}`);
-                  
-                  // Aquí se podría llamar a validateObject si tuviera una imagen real
-                  // const result = await validateObject(params.object.id, imageUri, 0.7);
-                } catch (error) {
-                  console.error('Error validando objeto:', error);
-                }
-              }
-            }
-          ]
-        );
-      } else {
-        Alert.alert(
-          'Objeto ya descubierto',
-          'Este objeto ya ha sido descubierto.',
-          [{ text: 'Entendido' }],
-        );
+      // Abrir cámara y capturar imagen
+      const imageUri = await openCamera();
+      if (imageUri) {
+        await validateObjectImage(imageUri);
       }
+    } catch (error) {
+      console.error('Error en proceso de validación:', error);
+      Alert.alert('Error', 'Ocurrió un error durante la validación');
     } finally {
       setIsValidating(false);
     }
@@ -113,14 +175,17 @@ export default function GoalDetailScreen() {
   const effectiveText =
     (cluesText && cluesText.trim().length)
       ? cluesText
-      : (params.object.description?.trim() || 'No hay pistas disponibles por ahora.');
+      : (objectDetails?.description || params.object.description?.trim() || 'No hay pistas disponibles por ahora.');
 
   // Verificar si el objeto se acaba de desbloquear
   const isObjectDiscovered = wasDiscovered || params.object.isDiscovered;
+  
+  // Usar los detalles del objeto validado si están disponibles
+  const finalObjectDetails = objectDetails || params.object;
 
   // Config visual por tipo (similar a AlbumItem)
   const cardConfig = useMemo(() => {
-    const t = (params.object.type || '').toUpperCase();
+    const t = (finalObjectDetails.type || '').toUpperCase();
     if (t.includes('CERAM')) {
       return {
         frameColors: ['#8B4513', '#D2691E', '#CD853F'] as [string, string, ...string[]],
@@ -159,13 +224,13 @@ export default function GoalDetailScreen() {
       typeText: 'OBJETO',
       holo: ['#8B4513', '#CD853F'] as [string, string],
     };
-  }, [params.object.type]);
+  }, [finalObjectDetails.type]);
 
   // Estrellas decorativas (mismo espíritu que AlbumItem)
   const valueStars  = isObjectDiscovered ? '★★★★' : '????';
   const rarityStars = isObjectDiscovered ? '★★★'  : '???';
 
-  const titleToShow = (isObjectDiscovered ? params.object.name : '???').toUpperCase();
+  const titleToShow = (isObjectDiscovered ? finalObjectDetails.name : '???').toUpperCase();
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -175,7 +240,7 @@ export default function GoalDetailScreen() {
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>
-          {params.object.name}
+          {finalObjectDetails.name}
         </Text>
         <View style={{ width: 40 }} />
       </View>
@@ -203,8 +268,12 @@ export default function GoalDetailScreen() {
               {/* Imagen / lock + FAB */}
               <View style={[styles.artworkFrame, { backgroundColor: COLORS.blue[800] }]}>
                 <View style={styles.artworkContainer}>
-                  {(wasDiscovered || params.object.isDiscovered) && params.object.pictureUrls?.[0] ? (
-                    <Image source={{ uri: params.object.pictureUrls[0] }} style={styles.artwork} resizeMode="cover" />
+                  {(wasDiscovered || params.object.isDiscovered) && (objectDetails?.url_image || params.object.pictureUrls?.[0]) ? (
+                    <Image 
+                      source={{ uri: objectDetails?.url_image || params.object.pictureUrls[0] }} 
+                      style={styles.artwork} 
+                      resizeMode="cover" 
+                    />
                   ) : (
                     <View style={[styles.placeholderArtwork, { backgroundColor: isDark ? COLORS.gray[800] : COLORS.gray[300] }]}>
                       <Ionicons name="image-outline" size={40} color={isDark ? COLORS.gray[300] : COLORS.gray[600]} />
@@ -214,6 +283,7 @@ export default function GoalDetailScreen() {
                             <Ionicons name="lock-closed" size={16} color={COLORS.white} />
                           </View>
                           <Text style={styles.lockText}>POR DESCUBRIR</Text>
+                          <Text style={styles.cameraHint}>Toca la cámara para validar</Text>
                         </>
                       )}
                     </View>
@@ -229,7 +299,11 @@ export default function GoalDetailScreen() {
                     ]}
                     activeOpacity={0.9}
                   >
-                    <Ionicons name="camera" size={22} color={colors.buttonText} />
+                    {isValidating ? (
+                      <Ionicons name="hourglass" size={22} color={colors.buttonText} />
+                    ) : (
+                      <Ionicons name="camera" size={22} color={colors.buttonText} />
+                    )}
                   </TouchableOpacity>
                 </View>
               </View>
@@ -340,6 +414,15 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     letterSpacing: 1,
     fontSize: 12,
+  },
+  cameraHint: {
+    position: 'absolute',
+    bottom: -8,
+    alignSelf: 'center',
+    color: COLORS.white,
+    fontSize: 10,
+    opacity: 0.8,
+    textAlign: 'center',
   },
 
   fabCamera: {

@@ -2,20 +2,14 @@ import Api from "@services/api";
 
 export async function validateGoal(
   idGoal: number,
-  image: File
+  idImg: number
 ): Promise<string> {
   const api = await Api.getInstance();
 
-  const formData = new FormData();
-  formData.append("file", image);
-
-  const response = await api.post<FormData, string>(
-    formData,
+  const response = await api.post<null, string>(
+    null,
     {
-      url: `/goals/${idGoal}/validate`,
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
+      url: `/goals/${idGoal}/validate/${idImg}`,
     }
   );
 
