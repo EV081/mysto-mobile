@@ -1,12 +1,23 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, useColorScheme, TouchableOpacity, Alert } from 'react-native';
+import React, { useMemo, useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  useColorScheme,
+  TouchableOpacity,
+  Alert,
+  Image,
+  ScrollView,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { getThemeColors, COLORS } from '@constants/colors';
-import AlbumItem from '@components/Album/AlbumItem';
-import { validateGoal } from '@services/goals/validateGoal';
-import { AlbumResponseDto } from '@interfaces/album/AlbumResponse';
+import { useToast } from '@hooks/useToast';
+import { useLocationValidation } from '@hooks/useLocationValidation';
+import { validateObject } from '@services/imageRecognition/validateObject';
+import Toast from '@components/common/Toast';
 
 interface GoalDetailRouteParams {
   object: {
@@ -16,6 +27,7 @@ interface GoalDetailRouteParams {
     pictureUrls: string[];
     type: string;
     isDiscovered: boolean;
+    clueTexts?: string[]; // ✅ pistas por objeto (llegan desde GoalsScreen)
   };
   museumId: number;
   museumName: string;
@@ -25,111 +37,258 @@ export default function GoalDetailScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
   const params = route.params as GoalDetailRouteParams;
+
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const colors = getThemeColors(isDark);
+  const { toast, showCelebration, hideToast } = useToast();
 
   const [isValidating, setIsValidating] = useState(false);
+  const [wasDiscovered, setWasDiscovered] = useState(params.object.isDiscovered);
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+
+  // Hook para validar ubicación
+  const { validateLocation, isValidatingLocation, isLocationValid } = useLocationValidation({
+    museumId: params.museumId,
+    userLocation,
+  });
 
   const handleCameraPress = async () => {
-    Alert.alert(
-      'Validar Objeto',
-      '¿Quieres tomar una foto para validar este objeto cultural?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Tomar Foto', onPress: validateObject }
-      ]
-    );
-  };
-
-  const validateObject = async () => {
     setIsValidating(true);
     try {
-      // Aquí se implementaría la lógica de la cámara
-      // Por ahora simulamos la validación
-      Alert.alert(
-        'Funcionalidad en Desarrollo',
-        'La funcionalidad de cámara y validación estará disponible próximamente.',
-        [{ text: 'Entendido' }]
-      );
-      
-      // Ejemplo de cómo sería la validación:
-      // const imageFile = await takePhoto();
-      // const result = await validateGoal(params.object.id, imageFile);
-      // if (result === 'success') {
-      //   Alert.alert('¡Éxito!', 'Objeto validado correctamente');
-      //   navigation.goBack();
-      // }
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo validar el objeto');
+      // Primero validar ubicación
+      const locationValid = await validateLocation();
+      if (!locationValid) {
+        return;
+      }
+
+      // Aquí se implementaría la lógica de cámara
+      // Por ahora simulamos la validación del objeto
+      if (!wasDiscovered) {
+        // Simular captura de imagen y validación
+        // En una implementación real, aquí se abriría la cámara
+        Alert.alert(
+          'Validación de Objeto',
+          'Esta funcionalidad abrirá la cámara para validar el objeto. Por ahora se simula la validación.',
+          [
+            { text: 'Cancelar', style: 'cancel' },
+            {
+              text: 'Simular Validación',
+              onPress: async () => {
+                try {
+                  // Simular validación exitosa
+                  setWasDiscovered(true);
+                  showCelebration(`¡Objeto desbloqueado! ${params.object.name}`);
+                  
+                  // Aquí se podría llamar a validateObject si tuviera una imagen real
+                  // const result = await validateObject(params.object.id, imageUri, 0.7);
+                } catch (error) {
+                  console.error('Error validando objeto:', error);
+                }
+              }
+            }
+          ]
+        );
+      } else {
+        Alert.alert(
+          'Objeto ya descubierto',
+          'Este objeto ya ha sido descubierto.',
+          [{ text: 'Entendido' }],
+        );
+      }
     } finally {
       setIsValidating(false);
     }
   };
 
-  const albumItem: AlbumResponseDto = {
-    id: params.object.id,
-    name: params.object.name,
-    description: params.object.description,
-    type: params.object.type,
-    pictureUrls: params.object.pictureUrls,
-    isObtained: false,
-  };
+  // Texto de pistas (o fallback)
+  const cluesText = useMemo(() => {
+    const clues = params.object.clueTexts?.filter(t => !!t?.trim()) ?? [];
+    if (!clues.length) return '';
+    return clues.map(t => `• ${t.trim()}`).join('\n\n');
+  }, [params.object.clueTexts]);
+
+  // ⚠️ CAMBIADO: ahora SIEMPRE prioriza mostrar las PISTAS que vienen de GoalsScreen.
+  // Si no hay pistas, usa description; si tampoco hay, muestra un fallback.
+  const effectiveText =
+    (cluesText && cluesText.trim().length)
+      ? cluesText
+      : (params.object.description?.trim() || 'No hay pistas disponibles por ahora.');
+
+  // Verificar si el objeto se acaba de desbloquear
+  const isObjectDiscovered = wasDiscovered || params.object.isDiscovered;
+
+  // Config visual por tipo (similar a AlbumItem)
+  const cardConfig = useMemo(() => {
+    const t = (params.object.type || '').toUpperCase();
+    if (t.includes('CERAM')) {
+      return {
+        frameColors: ['#8B4513', '#D2691E', '#CD853F'] as [string, string, ...string[]],
+        borderColor: '#654321',
+        typeText: 'CERÁMICA',
+        holo: ['#8B4513', '#CD853F'] as [string, string],
+      };
+    }
+    if (t.includes('TEXTIL')) {
+      return {
+        frameColors: ['#800080', '#DA70D6', '#DDA0DD'] as [string, string, ...string[]],
+        borderColor: '#4B0082',
+        typeText: 'TEXTIL',
+        holo: ['#800080', '#DDA0DD'] as [string, string],
+      };
+    }
+    if (t.includes('PAINT') || t.includes('PINTUR')) {
+      return {
+        frameColors: ['#4169E1', '#6495ED', '#87CEEB'] as [string, string, ...string[]],
+        borderColor: '#191970',
+        typeText: 'PINTURA',
+        holo: ['#4169E1', '#87CEEB'] as [string, string],
+      };
+    }
+    if (t.includes('GOLD') || t.includes('ORFEB')) {
+      return {
+        frameColors: ['#DAA520', '#FFD700', '#FFF8DC'] as [string, string, ...string[]],
+        borderColor: '#B8860B',
+        typeText: 'ORFEBRERÍA',
+        holo: ['#DAA520', '#FFF8DC'] as [string, string],
+      };
+    }
+    return {
+      frameColors: ['#8B4513', '#D2691E', '#CD853F'] as [string, string, ...string[]],
+      borderColor: '#654321',
+      typeText: 'OBJETO',
+      holo: ['#8B4513', '#CD853F'] as [string, string],
+    };
+  }, [params.object.type]);
+
+  // Estrellas decorativas (mismo espíritu que AlbumItem)
+  const valueStars  = isObjectDiscovered ? '★★★★' : '????';
+  const rarityStars = isObjectDiscovered ? '★★★'  : '???';
+
+  const titleToShow = (isObjectDiscovered ? params.object.name : '???').toUpperCase();
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.header}>
+      {/* Header */}
+      <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Pistas</Text>
-        <View style={styles.placeholder} />
+        <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>
+          {params.object.name}
+        </Text>
+        <View style={{ width: 40 }} />
       </View>
 
+      {/* Card a pantalla completa */}
       <View style={styles.content}>
-        <View style={[styles.panel, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-          <Text style={[styles.panelTitle, { color: colors.text }]}>Panel de Pistas</Text>
-          <Text style={[styles.panelText, { color: colors.textSecondary }]}>
-            Este es un texto de ejemplo para las pistas. Aquí se mostrarán las indicaciones 
-            que ayudarán al usuario a encontrar el objeto cultural en el museo. 
-            Las pistas pueden incluir descripciones de ubicación, características 
-            específicas del objeto, o información histórica relevante.
-          </Text>
-        </View>
+        <View style={[styles.cardContainer, { shadowColor: COLORS.card.shadow }]}>
+          <LinearGradient
+            colors={cardConfig.frameColors}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.cardFrame}
+          >
+            <View style={[
+              styles.innerBorder,
+              { borderColor: cardConfig.borderColor, backgroundColor: colors.cardBackground }
+            ]}>
+              {/* Nombre */}
+              <View style={styles.headerSection}>
+                <LinearGradient colors={['#2C2C2C', '#1A1A1A']} style={styles.nameBar}>
+                  <Text style={styles.cardName} numberOfLines={1}>{titleToShow}</Text>
+                </LinearGradient>
+              </View>
 
-        <View style={styles.objectSection}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Objeto por Descubrir</Text>
-          
-          <View style={styles.objectContainer}>
-            <View style={styles.albumContainer}>
-              <AlbumItem item={albumItem} isObtained={false} />
+              {/* Imagen / lock + FAB */}
+              <View style={[styles.artworkFrame, { backgroundColor: COLORS.blue[800] }]}>
+                <View style={styles.artworkContainer}>
+                  {(wasDiscovered || params.object.isDiscovered) && params.object.pictureUrls?.[0] ? (
+                    <Image source={{ uri: params.object.pictureUrls[0] }} style={styles.artwork} resizeMode="cover" />
+                  ) : (
+                    <View style={[styles.placeholderArtwork, { backgroundColor: isDark ? COLORS.gray[800] : COLORS.gray[300] }]}>
+                      <Ionicons name="image-outline" size={40} color={isDark ? COLORS.gray[300] : COLORS.gray[600]} />
+                      {!(wasDiscovered || params.object.isDiscovered) && (
+                        <>
+                          <View style={styles.lockBadge}>
+                            <Ionicons name="lock-closed" size={16} color={COLORS.white} />
+                          </View>
+                          <Text style={styles.lockText}>POR DESCUBRIR</Text>
+                        </>
+                      )}
+                    </View>
+                  )}
+
+                  {/* FAB cámara */}
+                  <TouchableOpacity
+                    onPress={handleCameraPress}
+                    disabled={isValidating}
+                    style={[
+                      styles.fabCamera,
+                      { backgroundColor: colors.buttonBackground, opacity: isValidating ? 0.6 : 1 },
+                    ]}
+                    activeOpacity={0.9}
+                  >
+                    <Ionicons name="camera" size={22} color={colors.buttonText} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Tipo */}
+              <View style={[styles.typeSection, { backgroundColor: cardConfig.borderColor }]}>
+                <Text style={styles.typeLabel}>[{cardConfig.typeText}]</Text>
+                <LinearGradient
+                  colors={cardConfig.holo}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.hologramStripe}
+                />
+              </View>
+
+              {/* Descripción / Pistas */}
+              <View style={[styles.descriptionSection, { borderColor: cardConfig.borderColor, backgroundColor: colors.cardBackground }]}>
+                <ScrollView showsVerticalScrollIndicator={false}>
+                  <Text style={[styles.descriptionText, { color: colors.text }]}>{effectiveText}</Text>
+                </ScrollView>
+              </View>
+
+              {/* Stats decorativas */}
+              <View style={[styles.statsSection, { backgroundColor: COLORS.gray[100], borderColor: cardConfig.borderColor }]}>
+                <View style={styles.statBox}>
+                  <Text style={styles.statLabel}>VAL</Text>
+                  <Text style={[styles.statValue, { color: cardConfig.borderColor }]}>{valueStars}</Text>
+                </View>
+                <View style={[styles.statDivider, { backgroundColor: cardConfig.borderColor }]} />
+                <View style={styles.statBox}>
+                  <Text style={styles.statLabel}>RAR</Text>
+                  <Text style={[styles.statValue, { color: cardConfig.borderColor }]}>{rarityStars}</Text>
+                </View>
+              </View>
+
+              {/* Esquinas decorativas */}
+              <View style={[styles.cornerDecor, styles.topLeft]} />
+              <View style={[styles.cornerDecor, styles.topRight]} />
+              <View style={[styles.cornerDecor, styles.bottomLeft]} />
+              <View style={[styles.cornerDecor, styles.bottomRight]} />
             </View>
-            
-            <TouchableOpacity
-              style={[
-                styles.cameraButton,
-                { backgroundColor: COLORS.button.primary },
-                isValidating && styles.cameraButtonDisabled
-              ]}
-              onPress={handleCameraPress}
-              disabled={isValidating}
-            >
-              <Ionicons name="camera" size={24} color="#fff" />
-              <Text style={styles.cameraButtonText}>
-                {isValidating ? 'Validando...' : 'Validar'}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          </LinearGradient>
         </View>
       </View>
+      
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        onHide={hideToast}
+      />
     </SafeAreaView>
   );
 }
 
+/* ====== styles ====== */
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
+
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -137,69 +296,106 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
   },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  placeholder: {
-    width: 40,
-  },
-  content: {
+  backButton: { padding: 8 },
+  headerTitle: { fontSize: 18, fontWeight: '700', maxWidth: '70%', textAlign: 'center' },
+
+  content: { flex: 1, padding: 8 },
+
+  cardContainer: {
     flex: 1,
-    padding: 16,
-  },
-  panel: {
-    padding: 16,
+    margin: 8,
+    elevation: 8,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
     borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 24,
   },
-  panelTitle: {
-    fontSize: 20,
+  cardFrame: { borderRadius: 12, padding: 4, flex: 1 },
+  innerBorder: { flex: 1, borderWidth: 2.5, borderRadius: 10, padding: 8, position: 'relative' },
+
+  headerSection: { marginBottom: 8 },
+  nameBar: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 6 },
+  cardName: { fontSize: 14, fontWeight: 'bold', letterSpacing: 1, color: COLORS.white, textAlign: 'center' },
+
+  artworkFrame: { padding: 3, borderRadius: 8, marginBottom: 10, elevation: 2 },
+  artworkContainer: { height: 300, borderRadius: 8, overflow: 'hidden', position: 'relative' },
+  artwork: { width: '100%', height: '100%' },
+  placeholderArtwork: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+
+  lockBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  lockText: {
+    position: 'absolute',
+    bottom: 12,
+    alignSelf: 'center',
+    color: COLORS.white,
     fontWeight: 'bold',
-    marginBottom: 12,
+    letterSpacing: 1,
+    fontSize: 12,
   },
-  panelText: {
-    fontSize: 16,
-    lineHeight: 24,
-    textAlign: 'justify',
-  },
-  objectSection: {
-    flex: 1,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 16,
-  },
-  objectContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 16,
-  },
-  albumContainer: {
-    flex: 1,
-  },
-  cameraButton: {
+
+  fabCamera: {
+    position: 'absolute',
+    right: 12,
+    bottom: 12,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    minWidth: 100,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
   },
-  cameraButtonDisabled: {
-    opacity: 0.6,
+
+  typeSection: {
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    marginBottom: 10,
+    borderRadius: 6,
+    position: 'relative',
+    overflow: 'hidden',
   },
-  cameraButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-    marginTop: 4,
+  typeLabel: { fontSize: 12, fontWeight: 'bold', color: COLORS.white, textAlign: 'center', letterSpacing: 1 },
+  hologramStripe: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, opacity: 0.5 },
+
+  descriptionSection: { borderWidth: 1.5, borderRadius: 8, padding: 12, marginBottom: 12, minHeight: 140, maxHeight: 240 },
+  descriptionText: { fontSize: 14, lineHeight: 22, textAlign: 'justify', includeFontPadding: false },
+
+  statsSection: {
+    flexDirection: 'row',
+    borderWidth: 1.5,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  statBox: { alignItems: 'center', flex: 1 },
+  statDivider: { width: 1.5, height: 22, marginHorizontal: 10 },
+  statLabel: { fontSize: 11, fontWeight: 'bold', color: COLORS.text, marginBottom: 2 },
+  statValue: { fontSize: 12, fontWeight: 'bold' },
+
+  cornerDecor: {
+    position: 'absolute',
+    width: 10,
+    height: 10,
+    backgroundColor: '#DAA520',
+    borderRadius: 2,
+    transform: [{ rotate: '45deg' }],
+  },
+  topLeft: { top: 6, left: 6 },
+  topRight: { top: 6, right: 6 },
+  bottomLeft: { bottom: 6, left: 6 },
+  bottomRight: { bottom: 6, right: 6 },
 });

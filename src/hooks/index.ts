@@ -4,4 +4,6 @@ export { useSearch } from './useSearch';
 export { useAuthState } from './useAuth';
 export { useStorageState } from './useStorageState';
 export { useMuseumData } from './useMuseumData';
-export { useMuseumUtils } from './useMuseumUtils'; 
+export { useMuseumUtils } from './useMuseumUtils';
+export { useLocationValidation } from './useLocationValidation';
+export { useGoalsCompletion } from './useGoalsCompletion'; 

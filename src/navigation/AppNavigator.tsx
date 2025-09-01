@@ -17,6 +17,7 @@ import ObjectDetailScreen from '@screens/ObjectDetailScreen';
 import PostDetailScreen from '@screens/PostDetailScreen';
 import GoalsScreen from '@screens/Aventura/GoalsScreen';
 import GoalDetailScreen from '@screens/Aventura/GoalDetailScreen';
+import QuizScreen from '@screens/Aventura/QuizScreen';
 const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
@@ -68,6 +69,7 @@ export default function AppNavigator() {
             <Stack.Screen name="Aventura" component={AventureScreen}/>
             <Stack.Screen name="Goals" component={GoalsScreen}/>
             <Stack.Screen name="GoalDetail" component={GoalDetailScreen}/>
+            <Stack.Screen name="Quiz" component={QuizScreen}/>
             <Stack.Screen name="ObjectDetail" component={ObjectDetailScreen} />
             <Stack.Screen name="PostDetail" component={PostDetailScreen} />
           </>
