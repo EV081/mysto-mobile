@@ -11,14 +11,8 @@ export interface ImageSearchResult {
 }
 
 export interface ImageSearchResponse {
-  resultados?: ImageSearchResult[]; 
-  id?: number;
-  name?: string;
-  description?: string;
-  similarity_score?: number;
-  url_image?: string;
-  type?: CulturalObjectType;
-  mensaje?: string;
+  object: ImageSearchResult;
+  similarity_score: number;
 }
 
 const mapTypeToEnum = (typeNumber?: number): CulturalObjectType | undefined => {
@@ -32,10 +26,11 @@ const mapTypeToEnum = (typeNumber?: number): CulturalObjectType | undefined => {
 };
 
 export async function getObjectbyImage(
+  objectId: number,
   imageUri: string, 
-  similarityThreshold: number = 0.7
-): Promise<ImageSearchResponse | ImageSearchResult[]> {
-  console.log('Buscando objeto por imagen:', { imageUri, similarityThreshold });
+  similarityThreshold: number = 0.5
+): Promise<ImageSearchResponse> {
+  console.log('[getObjectbyImage] Iniciando búsqueda:', { objectId, imageUri, similarityThreshold });
   
   const api = await Api.getImageRecognitionInstance();
   
@@ -46,31 +41,27 @@ export async function getObjectbyImage(
     name: 'image.jpg',
   } as any);
   
-  const response = await api.postFormData<ImageSearchResponse | ImageSearchResult[]>(formData, {
-    url: `/objetos/buscar?similarity_threshold=${similarityThreshold}`
-  });
+  console.log('[getObjectbyImage] Enviando FormData al endpoint:', `/objetos/buscar/${objectId}?similarity_threshold=${similarityThreshold}`);
   
-  console.log('Respuesta de búsqueda por imagen:', JSON.stringify(response.data, null, 2));
-  
-  const convertObject = (obj: any): ImageSearchResult => ({
-    ...obj,
-    type: mapTypeToEnum(obj.type)
-  });
-  
-  if (Array.isArray(response.data)) {
-    return response.data.map(convertObject);
-  } else if (response.data && typeof response.data === 'object') {
-    const data = response.data as any;
-    if (data.id && data.name) {
-      return [convertObject(data)];
-    }
-    if (data.resultados && Array.isArray(data.resultados)) {
-      return {
-        ...data,
-        resultados: data.resultados.map(convertObject)
-      };
-    }
+  try {
+    const response = await api.postFormData<ImageSearchResponse>(formData, {
+      url: `/objetos/buscar/${objectId}?similarity_threshold=${similarityThreshold}`
+    });
+    
+    console.log('[getObjectbyImage] Respuesta exitosa:', JSON.stringify(response.data, null, 2));
+    
+    // Mapear el tipo del objeto (el backend devuelve un número, lo mantenemos como número)
+    // El mapeo a enum se puede hacer en el componente si es necesario
+    
+    return response.data;
+  } catch (error: any) {
+    console.error('[getObjectbyImage] Error en la búsqueda:', {
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message
+    });
+    
+    // Re-lanzar el error para que sea manejado por el componente
+    throw error;
   }
-  
-  return response.data;
 }

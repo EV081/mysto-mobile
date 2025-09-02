@@ -17,8 +17,9 @@ import * as ImagePicker from 'expo-image-picker';
 import { getThemeColors, COLORS } from '@constants/colors';
 import { useToast } from '@hooks/useToast';
 import { useLocationValidation } from '@hooks/useLocationValidation';
-import { validateObjectWithImage } from '@services/imageRecognition/validateObjectWithImage';
+import { getObjectbyImage } from '@services/imageRecognition/getObjectbyImage';
 import { validateGoal } from '@services/goals/validateGoal';
+import { getGoals } from '@services/goals/getGoal';
 import Toast from '@components/common/Toast';
 
 interface GoalDetailRouteParams {
@@ -33,6 +34,8 @@ interface GoalDetailRouteParams {
   };
   museumId: number;
   museumName: string;
+  museumHistory?: any; // Nueva información del museo con pistas
+  goalId?: number; // ID de la meta
 }
 
 export default function GoalDetailScreen() {
@@ -43,12 +46,14 @@ export default function GoalDetailScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const colors = getThemeColors(isDark);
-  const { toast, showCelebration, hideToast } = useToast();
+  const { toast, showCelebration, showError, hideToast } = useToast();
 
   const [isValidating, setIsValidating] = useState(false);
   const [wasDiscovered, setWasDiscovered] = useState(params.object.isDiscovered);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [objectDetails, setObjectDetails] = useState<any>(null);
+  const [goalId, setGoalId] = useState<number | null>(params.goalId || null);
+  const [museumHistory, setMuseumHistory] = useState<any>(params.museumHistory || null);
 
   // Hook para validar ubicación
   const { validateLocation, isValidatingLocation, isLocationValid } = useLocationValidation({
@@ -56,10 +61,46 @@ export default function GoalDetailScreen() {
     userLocation,
   });
 
+  // Obtener el ID de la meta al cargar el componente (solo si no se pasó desde GoalsScreen)
+  useEffect(() => {
+    console.log('[GoalDetailScreen] Parámetros recibidos:', {
+      objectId: params.object.id,
+      museumId: params.museumId,
+      goalId: params.goalId,
+      museumHistory: params.museumHistory ? 'Disponible' : 'No disponible'
+    });
+    
+    console.log('[GoalDetailScreen] Estado inicial goalId:', goalId);
+    
+    const fetchGoalId = async () => {
+      // Si ya tenemos el goalId desde GoalsScreen, no hacer nada
+      if (goalId) {
+        console.log('[GoalDetailScreen] GoalId ya disponible desde GoalsScreen:', goalId);
+        return;
+      }
+      
+      try {
+        console.log('[GoalDetailScreen] Obteniendo ID de meta para museo:', params.museumId);
+        const goalsResponse = await getGoals(params.museumId);
+        setGoalId(goalsResponse.id);
+        console.log('[GoalDetailScreen] ID de meta obtenido:', goalsResponse.id);
+        console.log('[GoalDetailScreen] Objetos de la meta:', goalsResponse.culturalObject);
+        console.log('[GoalDetailScreen] Objetos encontrados:', goalsResponse.found);
+      } catch (error) {
+        console.error('[GoalDetailScreen] Error obteniendo ID de meta:', error);
+        // Fallback: usar museumId si hay error
+        setGoalId(params.museumId);
+        console.log('[GoalDetailScreen] Usando museumId como fallback:', params.museumId);
+      }
+    };
+    
+    fetchGoalId();
+  }, [params.museumId, goalId]);
+
   const requestCameraPermission = async () => {
-    console.log('Solicitando permisos de cámara...');
+    console.log('[GoalDetailScreen] Solicitando permisos de cámara...');
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    console.log('Estado de permisos de cámara:', status);
+    console.log('[GoalDetailScreen] Estado de permisos de cámara:', status);
     
     if (status !== 'granted') {
       Alert.alert(
@@ -73,15 +114,15 @@ export default function GoalDetailScreen() {
   };
 
   const openCamera = async () => {
-    console.log('Abriendo cámara...');
+    console.log('[GoalDetailScreen] Abriendo cámara...');
     const hasPermission = await requestCameraPermission();
     if (!hasPermission) {
-      console.log('Permisos de cámara denegados');
+      console.log('[GoalDetailScreen] Permisos de cámara denegados');
       return null;
     }
 
     try {
-      console.log('Lanzando cámara...');
+      console.log('[GoalDetailScreen] Lanzando cámara...');
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
@@ -89,66 +130,106 @@ export default function GoalDetailScreen() {
         quality: 0.8,
       });
 
-      console.log('Resultado de cámara:', result);
+      console.log('[GoalDetailScreen] Resultado de cámara:', result);
       
       if (!result.canceled && result.assets && result.assets[0]) {
-        console.log('Imagen capturada:', result.assets[0].uri);
+        console.log('[GoalDetailScreen] Imagen capturada:', result.assets[0].uri);
         return result.assets[0].uri;
       } else {
-        console.log('Captura cancelada o sin imagen');
+        console.log('[GoalDetailScreen] Captura cancelada o sin imagen');
       }
     } catch (error) {
-      console.error('Error abriendo cámara:', error);
+      console.error('[GoalDetailScreen] Error abriendo cámara:', error);
       Alert.alert('Error', 'No se pudo abrir la cámara');
     }
     return null;
   };
 
   const validateObjectImage = async (imageUri: string) => {
+    if (!goalId) {
+      console.error('[GoalDetailScreen] No hay ID de meta disponible');
+      showError('Error: No se pudo obtener el ID de la meta');
+      return false;
+    }
+
     try {
-      // Validar el objeto con la imagen capturada
-      const validationResult = await validateObjectWithImage(params.object.id, imageUri, 0.7);
+      console.log('[GoalDetailScreen] Validando objeto con imagen, objectId:', params.object.id);
+      console.log('[GoalDetailScreen] URI de imagen:', imageUri);
+      
+      // Validar el objeto con la imagen capturada usando el ID del objeto específico
+      const validationResult = await getObjectbyImage(params.object.id, imageUri, 0.5);
+      
+      console.log('[GoalDetailScreen] Resultado de validación:', validationResult);
       
       if (validationResult && validationResult.object) {
+        console.log('[GoalDetailScreen] Objeto validado exitosamente:', validationResult.object.name);
+        console.log('[GoalDetailScreen] Puntuación de similitud:', validationResult.similarity_score);
+        
         // Si la validación es exitosa, guardar los detalles del objeto
         setObjectDetails(validationResult.object);
         setWasDiscovered(true);
-        showCelebration(`¡Objeto desbloqueado! ${validationResult.object.name}`);
         
         // Validar la meta con el ID del objeto encontrado
         try {
-          await validateGoal(params.museumId, validationResult.object.id);
-          console.log('Meta validada exitosamente');
-        } catch (goalError) {
-          console.error('Error validando meta:', goalError);
+          console.log('[GoalDetailScreen] Validando meta con objeto ID:', validationResult.object.id);
+          console.log('[GoalDetailScreen] Meta ID para validación:', goalId);
+          console.log('[GoalDetailScreen] Verificando goalId antes de validar:', goalId);
+          
+          if (!goalId) {
+            throw new Error('No hay goalId disponible para validar la meta');
+          }
+          
+          await validateGoal(goalId, validationResult.object.id);
+          console.log('[GoalDetailScreen] Meta validada exitosamente');
+          
+          // Solo mostrar toast de éxito cuando la meta se valide correctamente
+          showCelebration(`¡Objeto desbloqueado! ${validationResult.object.name} (Similitud: ${(validationResult.similarity_score * 100).toFixed(1)}%)`);
+          
+        } catch (goalError: any) {
+          console.error('[GoalDetailScreen] Error validando meta:', goalError);
+          console.error('[GoalDetailScreen] Detalles del error de meta:', {
+            status: goalError?.response?.status,
+            data: goalError?.response?.data,
+            message: goalError?.message
+          });
+          // Mostrar error específico de validación de meta
+          if (goalError?.response?.status === 404) {
+            showError('Objeto validado pero no se pudo actualizar la meta. Contacta al administrador.');
+          } else {
+            showError('Objeto validado pero error al actualizar la meta. Intenta de nuevo.');
+          }
         }
         
         return true;
       }
     } catch (error: any) {
-      console.error('Error validando objeto:', error);
+      console.error('[GoalDetailScreen] Error validando objeto:', error);
+      console.error('[GoalDetailScreen] Detalles del error:', {
+        status: error?.response?.status,
+        statusText: error?.response?.statusText,
+        data: error?.response?.data,
+        message: error?.message
+      });
       
       if (error?.response?.status === 404) {
-        Alert.alert(
-          'Objeto Incorrecto',
-          'La imagen no coincide con este objeto. Intenta con otra imagen.',
-          [{ text: 'Entendido' }]
-        );
+        const errorMessage = error?.response?.data?.detail || 'La imagen no coincide con este objeto. Intenta con otra imagen.';
+        console.log('[GoalDetailScreen] Mostrando error 404:', errorMessage);
+        showError(errorMessage);
       } else {
-        Alert.alert(
-          'Error de Validación',
-          'No se pudo validar el objeto. Intenta de nuevo.',
-          [{ text: 'Entendido' }]
-        );
+        const errorMessage = error?.response?.data?.detail || 'No se pudo validar el objeto. Intenta de nuevo.';
+        console.log('[GoalDetailScreen] Mostrando error genérico:', errorMessage);
+        showError(errorMessage);
       }
     }
     return false;
   };
 
   const handleCameraPress = async () => {
-    console.log('Botón de cámara presionado');
+    console.log('[GoalDetailScreen] Botón de cámara presionado');
+    console.log('[GoalDetailScreen] Estado actual - wasDiscovered:', wasDiscovered, 'goalId:', goalId);
     
     if (wasDiscovered) {
+      console.log('[GoalDetailScreen] Objeto ya descubierto, mostrando alerta');
       Alert.alert(
         'Objeto ya descubierto',
         'Este objeto ya ha sido descubierto.',
@@ -157,44 +238,44 @@ export default function GoalDetailScreen() {
       return;
     }
 
-    // Versión simplificada para pruebas
+    if (!goalId) {
+      console.error('[GoalDetailScreen] No hay ID de meta disponible');
+      showError('Error: No se pudo obtener el ID de la meta');
+      return;
+    }
+
     try {
-      console.log('Probando apertura de cámara...');
+      setIsValidating(true);
+      console.log('[GoalDetailScreen] Iniciando proceso de validación...');
       
-      // Verificar si ImagePicker está disponible
-      if (!ImagePicker) {
-        console.error('ImagePicker no está disponible');
-        Alert.alert('Error', 'ImagePicker no está disponible');
+      // Abrir cámara y capturar imagen
+      console.log('[GoalDetailScreen] Abriendo cámara...');
+      const imageUri = await openCamera();
+      
+      if (!imageUri) {
+        console.log('[GoalDetailScreen] No se capturó imagen');
+        setIsValidating(false);
         return;
       }
 
-      // Solicitar permisos directamente
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      console.log('Estado de permisos:', status);
+      console.log('[GoalDetailScreen] Imagen capturada, procediendo a validar...');
+      console.log('[GoalDetailScreen] URI de imagen capturada:', imageUri);
       
-      if (status !== 'granted') {
-        Alert.alert('Permisos', 'Se necesitan permisos de cámara');
-        return;
-      }
-
-      // Intentar abrir la cámara
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: false,
-        quality: 0.8,
-      });
-
-      console.log('Resultado de cámara:', result);
+      // Validar la imagen capturada
+      const isValid = await validateObjectImage(imageUri);
       
-      if (!result.canceled && result.assets && result.assets[0]) {
-        Alert.alert('Éxito', 'Imagen capturada: ' + result.assets[0].uri);
+      if (isValid) {
+        console.log('[GoalDetailScreen] Objeto validado exitosamente');
       } else {
-        Alert.alert('Info', 'Captura cancelada');
+        console.log('[GoalDetailScreen] Objeto no válido');
       }
       
     } catch (error) {
-      console.error('Error en cámara:', error);
-      Alert.alert('Error', 'Error al abrir cámara: ' + error);
+      console.error('[GoalDetailScreen] Error en proceso de cámara:', error);
+      showError('Error al procesar la imagen');
+    } finally {
+      console.log('[GoalDetailScreen] Finalizando proceso de validación');
+      setIsValidating(false);
     }
   };
 
@@ -220,8 +301,10 @@ export default function GoalDetailScreen() {
 
   // Config visual por tipo (similar a AlbumItem)
   const cardConfig = useMemo(() => {
-    const t = (finalObjectDetails.type || '').toUpperCase();
-    if (t.includes('CERAM')) {
+    // Asegurar que el tipo sea un string válido
+    const typeStr = String(finalObjectDetails.type || '').toUpperCase();
+    
+    if (typeStr.includes('CERAM') || typeStr.includes('1')) {
       return {
         frameColors: ['#8B4513', '#D2691E', '#CD853F'] as [string, string, ...string[]],
         borderColor: '#654321',
@@ -229,7 +312,7 @@ export default function GoalDetailScreen() {
         holo: ['#8B4513', '#CD853F'] as [string, string],
       };
     }
-    if (t.includes('TEXTIL')) {
+    if (typeStr.includes('TEXTIL') || typeStr.includes('3')) {
       return {
         frameColors: ['#800080', '#DA70D6', '#DDA0DD'] as [string, string, ...string[]],
         borderColor: '#4B0082',
@@ -237,7 +320,7 @@ export default function GoalDetailScreen() {
         holo: ['#800080', '#DDA0DD'] as [string, string],
       };
     }
-    if (t.includes('PAINT') || t.includes('PINTUR')) {
+    if (typeStr.includes('PAINT') || typeStr.includes('PINTUR') || typeStr.includes('2')) {
       return {
         frameColors: ['#4169E1', '#6495ED', '#87CEEB'] as [string, string, ...string[]],
         borderColor: '#191970',
@@ -245,7 +328,7 @@ export default function GoalDetailScreen() {
         holo: ['#4169E1', '#87CEEB'] as [string, string],
       };
     }
-    if (t.includes('GOLD') || t.includes('ORFEB')) {
+    if (typeStr.includes('GOLD') || typeStr.includes('ORFEB') || typeStr.includes('4')) {
       return {
         frameColors: ['#DAA520', '#FFD700', '#FFF8DC'] as [string, string, ...string[]],
         borderColor: '#B8860B',

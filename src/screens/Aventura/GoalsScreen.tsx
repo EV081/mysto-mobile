@@ -6,6 +6,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { getThemeColors, COLORS } from '@constants/colors';
 import { getGoals } from '@services/goals/getGoal';
 import { getCulturalObjectInfo } from '@services/culturalObject/getCulturalObjectInfo';
+import { getMuseumHistory } from '@services/Gemma/getMuseumHistory';
 import { useToast } from '@hooks/useToast';
 import { useLocationValidation } from '@hooks/useLocationValidation';
 import { useGoalsCompletion } from '@hooks/useGoalsCompletion';
@@ -42,6 +43,9 @@ export default function GoalsScreen() {
   const [goalObjects, setGoalObjects] = useState<GoalObject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isQuizLoading, setIsQuizLoading] = useState(false);
+  const [museumHistory, setMuseumHistory] = useState<any>(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [goalId, setGoalId] = useState<number | null>(null); // ID de la meta
 
   // Hook para validar ubicación
   const { validateLocation, isValidatingLocation, isLocationValid } = useLocationValidation({
@@ -54,6 +58,25 @@ export default function GoalsScreen() {
     museumId: params.museumId,
     museumName: params.museumName,
   });
+
+  const fetchMuseumHistory = async () => {
+    try {
+      setIsLoadingHistory(true);
+      console.log('[GoalsScreen] Obteniendo información del museo para meta:', params.museumId);
+      
+      const goalsResponse = await getGoals(params.museumId);
+      const historyResponse = await getMuseumHistory(goalsResponse.id);
+      
+      console.log('[GoalsScreen] Información del museo obtenida:', historyResponse.data);
+      setMuseumHistory(historyResponse.data);
+      
+    } catch (error) {
+      console.error('[GoalsScreen] Error obteniendo información del museo:', error);
+      // No mostrar error al usuario, solo log
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
 
   const clueMap = useMemo(() => {
     const map = new Map<number, string[]>();
@@ -70,6 +93,7 @@ export default function GoalsScreen() {
 
   useEffect(() => {
     initializeGoals();
+    fetchMuseumHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -84,6 +108,10 @@ export default function GoalsScreen() {
     try {
       setIsLoading(true);
       const goalsResponse = await getGoals(params.museumId);
+      
+      // Guardar el ID de la meta
+      setGoalId(goalsResponse.id);
+      console.log('[GoalsScreen] ID de meta obtenido:', goalsResponse.id);
 
       const objectsData: GoalObject[] = [];
       for (const culturalObject of goalsResponse.culturalObject) {
@@ -117,11 +145,23 @@ export default function GoalsScreen() {
   };
 
   const handleObjectPress = (object: GoalObject) => {
+    console.log('[GoalsScreen] Navegando a GoalDetail con objeto:', object.id);
+    console.log('[GoalsScreen] Información del museo disponible:', museumHistory);
+    console.log('[GoalsScreen] GoalId disponible:', goalId);
+    
+    if (!goalId) {
+      console.error('[GoalsScreen] No hay goalId disponible');
+      Alert.alert('Error', 'No se pudo obtener la información de la meta');
+      return;
+    }
+    
     // Se envían las pistas del objeto a la pantalla de detalle
     navigation.navigate('GoalDetail', {
       object,
       museumId: params.museumId,
       museumName: params.museumName,
+      museumHistory, // Información del museo con pistas
+      goalId: goalId, // ID de la meta (no del objeto)
     });
   };
 
