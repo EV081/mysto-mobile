@@ -10,7 +10,7 @@ export const COLORS = {
   light: {
     background: '#FFFFFF',
     text: '#000000',
-    textSecondary: '#666666',
+    textSecondary: '#444343ff',
     cardBackground: '#FFFFFF',
     border: '#E0E0E0',
     buttonBackground: '#684300ff',

@@ -19,6 +19,7 @@ import {
   IconButton,
   Dialog,
   Portal,
+  useTheme,
 } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -177,7 +178,15 @@ export default function PostDetailScreen({ route }: any) {
     navigation.navigate('RedSocial');
   };
 
+    const handlePressMuseum = () => {
+    navigation.navigate('MuseumforOneScreen', { museumId: post.museumId });
+  };
+  
   const getBackButtonText = () => 'Volver';
+  const { dark } = useTheme();
+
+  const authorInitial = (post?.userName ?? 'U').trim().charAt(0).toUpperCase();
+
 
   if (loading)
     return (
@@ -269,9 +278,25 @@ export default function PostDetailScreen({ route }: any) {
             ) : (
               <>
                 <View style={styles.postHeader}>
-                  <Avatar.Text size={40} label="U" style={styles.avatar} />
+                   {post.userImageUrl ? (
+                            <Image
+                              source={{ uri: post.userImageUrl }}
+                              style={[styles.avatarImage, styles.avatarBorder]}
+                            />
+                          ) : (
+                            <View
+                              style={[
+                                styles.avatarFallback,
+                                { backgroundColor: dark ? COLORS.background : '#F3F4F6' },
+                                styles.avatarBorder
+                              ]}
+                            >
+                              <Text style={styles.avatarText}>{authorInitial}</Text>
+                            </View>
+                    )}
+              
                   <View style={styles.postInfo}>
-                    <Text style={styles.postAuthor}>Usuario {post.authorId}</Text>
+                    <Text style={styles.postAuthor}>{post.userName}</Text>
                     <Text style={styles.postDate}>
                       {new Date(post.createdAt).toLocaleDateString('es-ES')}
                     </Text>
@@ -290,6 +315,9 @@ export default function PostDetailScreen({ route }: any) {
                 </View>
 
                 <Text style={styles.postText}>{post.content}</Text>
+                <TouchableOpacity onPress={handlePressMuseum}> 
+                  <Text style={styles.postMuseum} >🏛️: {post.museumName}</Text>
+                </TouchableOpacity>
               </>
             )}
           </Card.Content>
@@ -449,6 +477,37 @@ function AddReviewBox({ onSubmit }: { onSubmit: (t: string) => void }) {
 }
 
 const styles = StyleSheet.create({
+    postMuseum: {
+    fontSize: 13,
+    color: COLORS.light.textSecondary,
+    lineHeight: 24,
+    marginTop: 25,    
+    fontStyle: 'italic',
+  },
+    avatarImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 12, 
+  },
+  avatarFallback: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  avatarBorder: {
+    borderWidth: 2,
+    borderColor: '#000000ff',
+  },
+  avatarText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+
   heroCarousel: {
     width: '100%',
     height: 300,
@@ -523,7 +582,7 @@ const styles = StyleSheet.create({
 
   editContainer: { gap: 16 },
   editInput: { minHeight: 100 },
-  editActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8 },
+  editActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, color: COLORS.primary },
   saveButton: { minWidth: 100 },
 
   postHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 16 },
