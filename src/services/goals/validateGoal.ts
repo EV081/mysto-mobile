@@ -1,23 +1,21 @@
 import Api from "@services/api";
 
 export async function validateGoal(
-  idGoal: number,
-  image: File
+  museumId: number,
+  objectId: number
 ): Promise<string> {
+  console.log('[validateGoal] Validando meta:', { museumId, objectId });
+  
   const api = await Api.getInstance();
+  
+  const url = `/goals/${museumId}/validate/${objectId}`;
+  console.log('[validateGoal] URL de validación:', url);
 
-  const formData = new FormData();
-  formData.append("file", image);
-
-  const response = await api.post<FormData, string>(
-    formData,
-    {
-      url: `/goals/${idGoal}/validate`,
-      headers: {
-        "Content-Type": "multipart/form-data",
-      },
-    }
+  const response = await api.post<null, string>(
+    null,
+    { url }
   );
 
+  console.log('[validateGoal] Meta validada exitosamente');
   return response.data;
 }

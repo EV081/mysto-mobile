@@ -38,6 +38,10 @@ export const useToast = () => {
     showToast(message, 'info');
   }, [showToast]);
 
+  const showCelebration = useCallback((message: string) => {
+    showToast(message, 'celebration');
+  }, [showToast]);
+
   return {
     toast,
     showToast,
@@ -45,6 +49,7 @@ export const useToast = () => {
     showSuccess,
     showError,
     showWarning,
-    showInfo
+    showInfo,
+    showCelebration
   };
 }; 

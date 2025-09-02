@@ -1,8 +1,10 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Dimensions } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '@constants/colors';
 
-export type ToastType = 'success' | 'error' | 'warning' | 'info';
+export type ToastType = 'success' | 'error' | 'warning' | 'info' | 'celebration';
 
 interface ToastProps {
   visible: boolean;
@@ -21,6 +23,7 @@ const Toast: React.FC<ToastProps> = ({
 }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(-100)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
 
   useEffect(() => {
     if (visible) {
@@ -34,6 +37,12 @@ const Toast: React.FC<ToastProps> = ({
         Animated.timing(slideAnim, {
           toValue: 0,
           duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          tension: 100,
+          friction: 8,
           useNativeDriver: true,
         }),
       ]).start();
@@ -76,6 +85,8 @@ const Toast: React.FC<ToastProps> = ({
         return { backgroundColor: COLORS.warning };
       case 'info':
         return { backgroundColor: COLORS.info };
+      case 'celebration':
+        return { backgroundColor: 'transparent' };
       default:
         return { backgroundColor: COLORS.primary };
     }
@@ -91,10 +102,49 @@ const Toast: React.FC<ToastProps> = ({
         return '⚠';
       case 'info':
         return 'ℹ';
+      case 'celebration':
+        return '🎉';
       default:
         return '•';
     }
   };
+
+  const getIconComponent = () => {
+    switch (type) {
+      case 'celebration':
+        return <Ionicons name="trophy" size={24} color="#FFD700" />;
+      default:
+        return <Text style={styles.icon}>{getIcon()}</Text>;
+    }
+  };
+
+  if (type === 'celebration') {
+    return (
+      <Animated.View
+        style={[
+          styles.container,
+          styles.celebrationContainer,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
+          },
+        ]}
+      >
+        <LinearGradient
+          colors={['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.celebrationGradient}
+        >
+          <View style={styles.celebrationContent}>
+            {getIconComponent()}
+            <Text style={styles.celebrationMessage}>{message}</Text>
+            <Ionicons name="sparkles" size={20} color="#FFD700" />
+          </View>
+        </LinearGradient>
+      </Animated.View>
+    );
+  }
 
   return (
     <Animated.View
@@ -145,6 +195,36 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '500',
+  },
+  celebrationContainer: {
+    borderRadius: 16,
+    elevation: 8,
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+  },
+  celebrationGradient: {
+    borderRadius: 16,
+    padding: 2,
+  },
+  celebrationContent: {
+    backgroundColor: 'rgba(0,0,0,0.9)',
+    borderRadius: 14,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  celebrationMessage: {
+    flex: 1,
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginHorizontal: 12,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
 });
 
