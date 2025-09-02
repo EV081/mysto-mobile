@@ -1,7 +1,13 @@
 export interface PostResponseDto {
   id: number;
   content: string;
-  createdAt: string;
   likes: number;
-  authorId: number;
+  createdAt: string;
+  pictureUrls: string[];
+  reviewIds: number[];
+  userId: number;
+  userName: string;      
+  museumId: number;
+  museumName: string; 
+  userImageUrl?: string;
 }

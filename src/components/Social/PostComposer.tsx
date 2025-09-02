@@ -112,12 +112,10 @@ export default function PostComposer({ visible, onClose, onCreated }: Props) {
           }
         } catch (err) {
           console.error('Error uploading images:', err);
-          // No fallamos si las imágenes no se pueden subir, solo mostramos warning
           console.warn('Algunas imágenes no se pudieron subir, pero el post se creó correctamente');
         }
       }
-
-      // Reset
+      
       setContent('');
       setImages([]);
       clearMuseum();

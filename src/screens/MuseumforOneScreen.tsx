@@ -79,7 +79,7 @@ export default function MuseumforOneScreen() {
 
   const handleBackPress = useCallback(() => {
     if (fromScreen === 'RedSocial') {
-      navigation.goBack();
+      navigation.navigate('RedSocial');
       return;
     }
     navigation.navigate('Museums');

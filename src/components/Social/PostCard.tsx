@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { IconButton, Menu, Card, Avatar } from 'react-native-paper';
+import {  View, Text, StyleSheet, TouchableOpacity, Image} from 'react-native';
+import { IconButton, Menu, Card, useTheme  } from 'react-native-paper';
 import PostImages from './PostImages';
 import { likePost } from '@services/post/incrementarLikes';
 import { deletePost } from '@services/post/deletePost';
@@ -91,20 +91,36 @@ export default function PostCard({ post, onUpdated, onDeleted, onOpenDetails }: 
     onOpenDetails();
   };
 
+  const authorInitial = (post.userName ?? 'U').trim().charAt(0).toUpperCase();
+  const { dark } = useTheme();
+
   return (
     <Card style={styles.card} elevation={2} onPress={() => onOpenDetails && onOpenDetails()}>
       <View style={styles.header}>
         <View style={styles.userInfo}>
-          <Avatar.Text 
-            size={40} 
-            label="U"
-            style={styles.avatar}
+        {post.userImageUrl ? (
+          <Image
+            source={{ uri: post.userImageUrl }}
+            style={[styles.avatarImage, styles.avatarBorder]}
           />
-          <View style={styles.userText}>
-            <Text style={styles.userName}>Usuario {post.authorId}</Text>
-            <Text style={styles.timestamp}>{when}</Text>
+        ) : (
+          <View
+            style={[
+              styles.avatarFallback,
+              { backgroundColor: dark ? COLORS.background : '#F3F4F6' },
+              styles.avatarBorder
+            ]}
+          >
+            <Text style={styles.avatarText}>{authorInitial}</Text>
           </View>
+        )}
+
+        <View style={styles.userText}>
+          <Text style={styles.userName}>{post.userName}</Text>
+          <Text style={styles.timestamp}>{when}</Text>
         </View>
+      </View>
+
         
         {isOwner && (
           <Menu
@@ -144,7 +160,8 @@ export default function PostCard({ post, onUpdated, onDeleted, onOpenDetails }: 
         </View>
       )}
 
-      <View style={styles.actions}>
+    <View style={styles.actions}>
+      <View style={styles.actionsRow}>
         <View style={styles.actionButtons}>
           <TouchableOpacity 
             style={styles.actionButton} 
@@ -160,7 +177,7 @@ export default function PostCard({ post, onUpdated, onDeleted, onOpenDetails }: 
               {likeCount}
             </Text>
           </TouchableOpacity>
-          
+
           <TouchableOpacity 
             style={styles.actionButton} 
             onPress={onOpenDetails}
@@ -175,18 +192,109 @@ export default function PostCard({ post, onUpdated, onDeleted, onOpenDetails }: 
             </Text>
           </TouchableOpacity>
         </View>
+
+        {post.museumName ? (
+          <View style={styles.museumChip} pointerEvents="none">
+            <Text
+              style={styles.museumChipText}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              🏛️: {post.museumName}
+            </Text>
+          </View>
+        ) : null}
+
       </View>
+    </View>
+
     </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { 
+  avatarImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  avatarFallback: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarBorder: {
+    borderWidth: 2,
+    borderColor: '#000000ff',
+  },
+  avatarText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.primary,
+  },
+    actions: { 
+    paddingHorizontal: 8, 
+    paddingBottom: 8,
+    borderTopWidth: 0.5,
+    borderTopColor: '#f0f0f0',
+  },
+
+  actionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between', 
+    paddingTop: 8,
+  },
+
+  actionButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+
+  museumChip: {
+    maxWidth: '42%',    
+    borderRadius: 999,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+
+  museumChipText: {
+    fontSize: 14,
+    color: '#444',
+},
+
+    card: { 
     borderRadius: 12, 
     marginBottom: 8,
     backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: COLORS.black, 
+    position: 'relative', 
+  },
+
+  museumChipFloating: {
+    position: 'absolute',
+    right: 10,
+    bottom: 10,
+    maxWidth: '60%',
+    borderWidth: 1,
+    borderColor: '#e5e5e5',
+    backgroundColor: '#fafafa',
+    borderRadius: 999,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+
+  museumBox: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  museumText: {
+    fontSize: 13,
+    color: '#000000ff',
+    fontStyle: 'italic',
   },
   header: {
     flexDirection: 'row',
@@ -228,17 +336,6 @@ const styles = StyleSheet.create({
     color: '#262626',
     fontSize: 14,
     lineHeight: 20
-  },
-  actions: { 
-    paddingHorizontal: 8, 
-    paddingBottom: 8,
-    borderTopWidth: 0.5,
-    borderTopColor: '#f0f0f0'
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 8,
   },
   actionButton: {
     flexDirection: 'row',
