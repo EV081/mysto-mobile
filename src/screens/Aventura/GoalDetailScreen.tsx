@@ -21,6 +21,8 @@ import { getObjectbyImage } from '@services/imageRecognition/getObjectbyImage';
 import { validateGoal } from '@services/goals/validateGoal';
 import { getGoals } from '@services/goals/getGoal';
 import Toast from '@components/common/Toast';
+import GameToast from '@components/common/GameToast';
+import { useGoalsState } from '@contexts/GoalContext';
 
 interface GoalDetailRouteParams {
   object: {
@@ -55,6 +57,9 @@ export default function GoalDetailScreen() {
   const [goalId, setGoalId] = useState<number | null>(params.goalId || null);
   const [museumHistory, setMuseumHistory] = useState<any>(params.museumHistory || null);
 
+  // Estado compartido
+  const { goalId: ctxGoalId, found, refresh, markFound } = useGoalsState(params.museumId);
+
   // Hook para validar ubicación
   const { validateLocation, isValidatingLocation, isLocationValid } = useLocationValidation({
     museumId: params.museumId,
@@ -74,7 +79,7 @@ export default function GoalDetailScreen() {
     
     const fetchGoalId = async () => {
       // Si ya tenemos el goalId desde GoalsScreen, no hacer nada
-      if (goalId) {
+      if (goalId || ctxGoalId) {
         console.log('[GoalDetailScreen] GoalId ya disponible desde GoalsScreen:', goalId);
         return;
       }
@@ -83,6 +88,7 @@ export default function GoalDetailScreen() {
         console.log('[GoalDetailScreen] Obteniendo ID de meta para museo:', params.museumId);
         const goalsResponse = await getGoals(params.museumId);
         setGoalId(goalsResponse.id);
+        refresh();
         console.log('[GoalDetailScreen] ID de meta obtenido:', goalsResponse.id);
         console.log('[GoalDetailScreen] Objetos de la meta:', goalsResponse.culturalObject);
         console.log('[GoalDetailScreen] Objetos encontrados:', goalsResponse.found);
@@ -95,7 +101,7 @@ export default function GoalDetailScreen() {
     };
     
     fetchGoalId();
-  }, [params.museumId, goalId]);
+  }, [params.museumId, goalId, ctxGoalId, refresh]);
 
   const requestCameraPermission = async () => {
     console.log('[GoalDetailScreen] Solicitando permisos de cámara...');
@@ -126,7 +132,7 @@ export default function GoalDetailScreen() {
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        aspect: [4, 3],
+        aspect: undefined, // NUEVO: sin proporciones fijas
         quality: 0.8,
       });
 
@@ -144,6 +150,9 @@ export default function GoalDetailScreen() {
     }
     return null;
   };
+
+  const [gameToastVisible, setGameToastVisible] = useState(false);
+  const [gameToastMsg, setGameToastMsg] = useState('');
 
   const validateObjectImage = async (imageUri: string) => {
     if (!goalId) {
@@ -182,8 +191,12 @@ export default function GoalDetailScreen() {
           await validateGoal(goalId, validationResult.object.id);
           console.log('[GoalDetailScreen] Meta validada exitosamente');
           
-          // Solo mostrar toast de éxito cuando la meta se valide correctamente
-          showCelebration(`¡Objeto desbloqueado! ${validationResult.object.name} (Similitud: ${(validationResult.similarity_score * 100).toFixed(1)}%)`);
+          // Persistencia local global
+          markFound(validationResult.object.id);
+          setWasDiscovered(true);
+          // Game toast
+          setGameToastMsg(`${validationResult.object.name}`);
+          setGameToastVisible(true);
           
         } catch (goalError: any) {
           console.error('[GoalDetailScreen] Error validando meta:', goalError);
@@ -352,6 +365,13 @@ export default function GoalDetailScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+      <GameToast
+        visible={gameToastVisible}
+        message="¡Objeto desbloqueado!"
+        subMessage={gameToastMsg}
+        onHide={() => setGameToastVisible(false)}
+      />
+      
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -363,66 +383,64 @@ export default function GoalDetailScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      {/* Card a pantalla completa */}
+      {/* Card principal estilo AlbumItem */}
       <View style={styles.content}>
-        <View style={[styles.cardContainer, { shadowColor: COLORS.card.shadow }]}>
+        <View style={[
+          styles.cardContainer,
+          !isObjectDiscovered && styles.lockedCard
+        ]}>
           <LinearGradient
             colors={cardConfig.frameColors}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.cardFrame}
           >
-            <View style={[
-              styles.innerBorder,
-              { borderColor: cardConfig.borderColor, backgroundColor: colors.cardBackground }
-            ]}>
+            <View style={[styles.innerBorder, { borderColor: cardConfig.borderColor }]}>
+              
               {/* Nombre */}
               <View style={styles.headerSection}>
-                <LinearGradient colors={['#2C2C2C', '#1A1A1A']} style={styles.nameBar}>
-                  <Text style={styles.cardName} numberOfLines={1}>{titleToShow}</Text>
+                <LinearGradient
+                  colors={['#2C2C2C', '#1A1A1A']}
+                  style={styles.nameBar}
+                >
+                  <Text style={[
+                    styles.cardName,
+                    !isObjectDiscovered && { color: '#666' }
+                  ]} numberOfLines={1}>
+                    {isObjectDiscovered ? finalObjectDetails.name.toUpperCase() : '???'}
+                  </Text>
                 </LinearGradient>
               </View>
 
               {/* Imagen / lock + FAB */}
-              <View style={[styles.artworkFrame, { backgroundColor: COLORS.blue[800] }]}>
+              <View style={styles.artworkFrame}>
                 <View style={styles.artworkContainer}>
-                  {(wasDiscovered || params.object.isDiscovered) && (objectDetails?.url_image || params.object.pictureUrls?.[0]) ? (
+                  {isObjectDiscovered && (objectDetails?.url_image || finalObjectDetails.pictureUrls?.[0]) ? (
                     <Image 
-                      source={{ uri: objectDetails?.url_image || params.object.pictureUrls[0] }} 
-                      style={styles.artwork} 
+                      source={{ uri: objectDetails?.url_image || finalObjectDetails.pictureUrls[0] }} 
+                      style={[
+                        styles.artwork,
+                        !isObjectDiscovered && styles.lockedImage
+                      ]}
                       resizeMode="cover" 
                     />
                   ) : (
-                    <View style={[styles.placeholderArtwork, { backgroundColor: isDark ? COLORS.gray[800] : COLORS.gray[300] }]}>
-                      <Ionicons name="image-outline" size={40} color={isDark ? COLORS.gray[300] : COLORS.gray[600]} />
-                      {!(wasDiscovered || params.object.isDiscovered) && (
-                        <>
-                          <View style={styles.lockBadge}>
-                            <Ionicons name="lock-closed" size={16} color={COLORS.white} />
-                          </View>
-                          <Text style={styles.lockText}>POR DESCUBRIR</Text>
-                          <Text style={styles.cameraHint}>Toca la cámara para validar</Text>
-                        </>
-                      )}
+                    <View style={styles.placeholderArtwork}>
+                      <Ionicons 
+                        name="image-outline" 
+                        size={40} 
+                        color={isDark ? COLORS.gray[300] : COLORS.gray[600]} 
+                      />
                     </View>
                   )}
-
-                  {/* FAB cámara */}
-                  <TouchableOpacity
-                    onPress={handleCameraPress}
-                    disabled={isValidating}
-                    style={[
-                      styles.fabCamera,
-                      { backgroundColor: colors.buttonBackground, opacity: isValidating ? 0.6 : 1 },
-                    ]}
-                    activeOpacity={0.9}
-                  >
-                    {isValidating ? (
-                      <Ionicons name="hourglass" size={22} color={colors.buttonText} />
-                    ) : (
-                      <Ionicons name="camera" size={22} color={colors.buttonText} />
-                    )}
-                  </TouchableOpacity>
+                  
+                  {!isObjectDiscovered && (
+                    <View style={styles.lockOverlay}>
+                      <View style={styles.lockIcon}>
+                        <Ionicons name="lock-closed" size={24} color="#fff" />
+                      </View>
+                    </View>
+                  )}
                 </View>
               </View>
 
@@ -438,22 +456,28 @@ export default function GoalDetailScreen() {
               </View>
 
               {/* Descripción / Pistas */}
-              <View style={[styles.descriptionSection, { borderColor: cardConfig.borderColor, backgroundColor: colors.cardBackground }]}>
-                <ScrollView showsVerticalScrollIndicator={false}>
-                  <Text style={[styles.descriptionText, { color: colors.text }]}>{effectiveText}</Text>
-                </ScrollView>
+              <View style={styles.descriptionSection}>
+                {isObjectDiscovered ? (
+                  <Text style={styles.descriptionText} numberOfLines={3}>
+                    {effectiveText}
+                  </Text>
+                ) : (
+                  <Text style={styles.hiddenText} numberOfLines={3}>
+                    Reliquia cultural oculta...
+                  </Text>
+                )}
               </View>
 
               {/* Stats decorativas */}
-              <View style={[styles.statsSection, { backgroundColor: COLORS.gray[100], borderColor: cardConfig.borderColor }]}>
+              <View style={styles.statsSection}>
                 <View style={styles.statBox}>
                   <Text style={styles.statLabel}>VAL</Text>
-                  <Text style={[styles.statValue, { color: cardConfig.borderColor }]}>{valueStars}</Text>
+                  <Text style={styles.statValue}>{valueStars}</Text>
                 </View>
-                <View style={[styles.statDivider, { backgroundColor: cardConfig.borderColor }]} />
+                <View style={styles.statDivider} />
                 <View style={styles.statBox}>
                   <Text style={styles.statLabel}>RAR</Text>
-                  <Text style={[styles.statValue, { color: cardConfig.borderColor }]}>{rarityStars}</Text>
+                  <Text style={styles.statValue}>{rarityStars}</Text>
                 </View>
               </View>
 
@@ -465,6 +489,23 @@ export default function GoalDetailScreen() {
             </View>
           </LinearGradient>
         </View>
+
+        {/* FAB cámara */}
+        <TouchableOpacity
+          onPress={handleCameraPress}
+          disabled={isValidating}
+          style={[
+            styles.fabCamera,
+            { backgroundColor: colors.buttonBackground, opacity: isValidating ? 0.6 : 1 },
+          ]}
+          activeOpacity={0.9}
+        >
+          {isValidating ? (
+            <Ionicons name="hourglass" size={22} color={colors.buttonText} />
+          ) : (
+            <Ionicons name="camera" size={22} color={colors.buttonText} />
+          )}
+        </TouchableOpacity>
       </View>
       
       <Toast
@@ -503,44 +544,75 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     borderRadius: 12,
   },
+  lockedCard: {
+    opacity: 0.7,
+  },
   cardFrame: { borderRadius: 12, padding: 4, flex: 1 },
-  innerBorder: { flex: 1, borderWidth: 2.5, borderRadius: 10, padding: 8, position: 'relative' },
+  innerBorder: { 
+    flex: 1, 
+    borderWidth: 2.5, 
+    borderRadius: 10, 
+    padding: 8, 
+    position: 'relative',
+    backgroundColor: '#F5F5DC',
+  },
 
   headerSection: { marginBottom: 8 },
-  nameBar: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 6 },
-  cardName: { fontSize: 14, fontWeight: 'bold', letterSpacing: 1, color: COLORS.white, textAlign: 'center' },
+  nameBar: { 
+    paddingVertical: 10, 
+    paddingHorizontal: 12, 
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cardName: { 
+    fontSize: 14, 
+    fontWeight: 'bold', 
+    letterSpacing: 1, 
+    color: COLORS.white, 
+    textAlign: 'center' 
+  },
 
-  artworkFrame: { padding: 3, borderRadius: 8, marginBottom: 10, elevation: 2 },
-  artworkContainer: { height: 300, borderRadius: 8, overflow: 'hidden', position: 'relative' },
+  artworkFrame: { 
+    padding: 3, 
+    borderRadius: 8, 
+    marginBottom: 10, 
+    elevation: 2,
+    backgroundColor: '#1E3A8A',
+  },
+  artworkContainer: { 
+    height: 300, 
+    borderRadius: 8, 
+    overflow: 'hidden', 
+    position: 'relative',
+    backgroundColor: '#000',
+  },
   artwork: { width: '100%', height: '100%' },
-  placeholderArtwork: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  lockedImage: {
+    opacity: 0.2,
+  },
+  placeholderArtwork: { 
+    flex: 1, 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    backgroundColor: '#333',
+  },
 
-  lockBadge: {
+  lockOverlay: {
     position: 'absolute',
-    top: 10,
-    right: 10,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 999,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
   },
-  lockText: {
-    position: 'absolute',
-    bottom: 12,
-    alignSelf: 'center',
-    color: COLORS.white,
-    fontWeight: 'bold',
-    letterSpacing: 1,
-    fontSize: 12,
-  },
-  cameraHint: {
-    position: 'absolute',
-    bottom: -8,
-    alignSelf: 'center',
-    color: COLORS.white,
-    fontSize: 10,
-    opacity: 0.8,
-    textAlign: 'center',
+  lockIcon: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 16,
+    padding: 10,
   },
 
   fabCamera: {
@@ -567,11 +639,52 @@ const styles = StyleSheet.create({
     position: 'relative',
     overflow: 'hidden',
   },
-  typeLabel: { fontSize: 12, fontWeight: 'bold', color: COLORS.white, textAlign: 'center', letterSpacing: 1 },
-  hologramStripe: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 2, opacity: 0.5 },
+  typeLabel: { 
+    fontSize: 12, 
+    fontWeight: 'bold', 
+    color: COLORS.white, 
+    textAlign: 'center', 
+    letterSpacing: 1,
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  hologramStripe: { 
+    position: 'absolute', 
+    bottom: 0, 
+    left: 0, 
+    right: 0, 
+    height: 2, 
+    opacity: 0.5 
+  },
 
-  descriptionSection: { borderWidth: 1.5, borderRadius: 8, padding: 12, marginBottom: 12, minHeight: 140, maxHeight: 240 },
-  descriptionText: { fontSize: 14, lineHeight: 20, textAlign: 'justify', includeFontPadding: false, paddingTop: 0 },
+  descriptionSection: { 
+    borderWidth: 1.5, 
+    borderRadius: 8, 
+    padding: 12, 
+    marginBottom: 12, 
+    minHeight: 140, 
+    maxHeight: 240,
+    backgroundColor: '#FFFFFF',
+    borderColor: '#8B4513',
+  },
+  descriptionText: { 
+    fontSize: 14, 
+    lineHeight: 20, 
+    textAlign: 'justify', 
+    includeFontPadding: false, 
+    paddingTop: 0,
+    color: '#2F2F2F',
+  },
+  hiddenText: {
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+    includeFontPadding: false,
+    paddingTop: 0,
+    color: '#999',
+    fontStyle: 'italic',
+  },
 
   statsSection: {
     flexDirection: 'row',
@@ -581,11 +694,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#E8D5B7',
+    borderColor: '#8B4513',
   },
   statBox: { alignItems: 'center', flex: 1 },
-  statDivider: { width: 1.5, height: 22, marginHorizontal: 10 },
-  statLabel: { fontSize: 11, fontWeight: 'bold', color: COLORS.text, marginBottom: 2 },
-  statValue: { fontSize: 12, fontWeight: 'bold' },
+  statDivider: { 
+    width: 1.5, 
+    height: 22, 
+    marginHorizontal: 10,
+    backgroundColor: '#8B4513',
+  },
+  statLabel: { 
+    fontSize: 11, 
+    fontWeight: 'bold', 
+    color: '#2F2F2F', 
+    marginBottom: 2 
+  },
+  statValue: { 
+    fontSize: 12, 
+    fontWeight: 'bold',
+    color: '#8B4513',
+  },
 
   cornerDecor: {
     position: 'absolute',
