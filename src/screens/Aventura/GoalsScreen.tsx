@@ -4,12 +4,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { getThemeColors, COLORS } from '@constants/colors';
-import { getGoals } from '@services/goals/getGoal';
 import { getCulturalObjectInfo } from '@services/culturalObject/getCulturalObjectInfo';
 import { getMuseumHistory } from '@services/Gemma/getMuseumHistory';
 import { useToast } from '@hooks/useToast';
 import { useLocationValidation } from '@hooks/useLocationValidation';
 import { useGoalsCompletion } from '@hooks/useGoalsCompletion';
+import { useMuseumGoals } from '@hooks/useMuseumGoals';
 import Toast from '@components/common/Toast';
 
 interface GoalsRouteParams {
@@ -47,6 +47,21 @@ export default function GoalsScreen() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [goalId, setGoalId] = useState<number | null>(null); // ID de la meta
 
+  // Estado compartido de metas por museo
+  const { 
+    goalId: ctxGoalId, 
+    found, 
+    culturalObjects, 
+    isLoading: goalsLoading, 
+    error: goalsError,
+    startGoal,
+    refreshGoals 
+  } = useMuseumGoals({
+    museumId: params.museumId,
+    userLocation: params.userLocation,
+    autoStart: true
+  });
+
   // Hook para validar ubicación
   const { validateLocation, isValidatingLocation, isLocationValid } = useLocationValidation({
     museumId: params.museumId,
@@ -59,16 +74,26 @@ export default function GoalsScreen() {
     museumName: params.museumName,
   });
 
+  // Función para iniciar meta manualmente si es necesario
+  const handleStartGoal = async () => {
+    try {
+      await startGoal();
+    } catch (error) {
+      console.error('Error iniciando meta:', error);
+    }
+  };
+
   const fetchMuseumHistory = async () => {
     try {
       setIsLoadingHistory(true);
       console.log('[GoalsScreen] Obteniendo información del museo para meta:', params.museumId);
       
-      const goalsResponse = await getGoals(params.museumId);
-      const historyResponse = await getMuseumHistory(goalsResponse.id);
-      
-      console.log('[GoalsScreen] Información del museo obtenida:', historyResponse.data);
-      setMuseumHistory(historyResponse.data);
+      // Solo obtener historia si tenemos goalId
+      if (ctxGoalId) {
+        const historyResponse = await getMuseumHistory(ctxGoalId);
+        console.log('[GoalsScreen] Información del museo obtenida:', historyResponse.data);
+        setMuseumHistory(historyResponse.data);
+      }
       
     } catch (error) {
       console.error('[GoalsScreen] Error obteniendo información del museo:', error);
@@ -92,29 +117,40 @@ export default function GoalsScreen() {
   }, [params?.objectClues]);
 
   useEffect(() => {
-    initializeGoals();
-    fetchMuseumHistory();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Verificar completación de metas cuando cambian los objetos
-  useEffect(() => {
-    if (goalObjects.length > 0) {
-      checkGoalsCompletion();
+    // Solo cargar historia si tenemos goalId
+    if (ctxGoalId) {
+      fetchMuseumHistory();
     }
-  }, [goalObjects, checkGoalsCompletion]);
+  }, [ctxGoalId]);
 
-  const initializeGoals = async () => {
+  // Cargar objetos cuando cambie el contexto
+  useEffect(() => {
+    if (culturalObjects.length > 0 && !goalObjects.length) {
+      loadObjectsFromCulturalObjects();
+    }
+  }, [culturalObjects, goalObjects.length]);
+
+  // NUEVO: Refrescar automáticamente cuando se desbloquea un objeto
+  useEffect(() => {
+    if (found.size > 0 && goalObjects.length > 0) {
+      // Actualizar el estado de desbloqueo de los objetos existentes
+      setGoalObjects(prev => prev.map(o => ({
+        ...o,
+        isDiscovered: found.has(o.id),
+      })));
+    }
+  }, [found, goalObjects.length]);
+
+  // Función para cargar objetos desde culturalObjects del hook
+  const loadObjectsFromCulturalObjects = async () => {
+    if (!culturalObjects.length) return;
+    
     try {
       setIsLoading(true);
-      const goalsResponse = await getGoals(params.museumId);
+      console.log('[GoalsScreen] Cargando objetos desde culturalObjects:', culturalObjects.length);
       
-      // Guardar el ID de la meta
-      setGoalId(goalsResponse.id);
-      console.log('[GoalsScreen] ID de meta obtenido:', goalsResponse.id);
-
       const objectsData: GoalObject[] = [];
-      for (const culturalObject of goalsResponse.culturalObject) {
+      for (const culturalObject of culturalObjects) {
         try {
           const objectResponse = await getCulturalObjectInfo(culturalObject.id);
           const base: GoalObject = {
@@ -123,7 +159,7 @@ export default function GoalsScreen() {
             description: objectResponse.data.description,
             pictureUrls: objectResponse.data.pictureUrls || [],
             type: objectResponse.data.type,
-            isDiscovered: goalsResponse.found.includes(culturalObject.id),
+            isDiscovered: found.has(culturalObject.id),
           };
 
           const cluesForThis = clueMap.get(base.id);
@@ -135,21 +171,41 @@ export default function GoalsScreen() {
         }
       }
 
-      setGoalObjects(objectsData);
+      // Ordenar objetos por ID en orden ascendente
+      const sortedObjects = objectsData.sort((a, b) => a.id - b.id);
+      
+      setGoalObjects(sortedObjects);
+      setGoalId(ctxGoalId);
     } catch (error) {
-      console.error('Error loading goals:', error);
-      Alert.alert('Error', 'No se pudieron cargar las metas');
+      console.error('Error loading objects from culturalObjects:', error);
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Cuando cambia el conjunto de encontrados, actualizamos el array para reflejar imágenes desbloqueadas
+  useEffect(() => {
+    if (!goalObjects.length) return;
+    setGoalObjects(prev => prev.map(o => ({
+      ...o,
+      isDiscovered: found?.has(o.id) ? true : o.isDiscovered,
+    })));
+  }, [found]);
+
+  // Verificar completación de metas cuando cambian los objetos
+  useEffect(() => {
+    if (goalObjects.length > 0) {
+      checkGoalsCompletion();
+    }
+  }, [goalObjects, checkGoalsCompletion]);
 
   const handleObjectPress = (object: GoalObject) => {
     console.log('[GoalsScreen] Navegando a GoalDetail con objeto:', object.id);
     console.log('[GoalsScreen] Información del museo disponible:', museumHistory);
     console.log('[GoalsScreen] GoalId disponible:', goalId);
     
-    if (!goalId) {
+    const gid = goalId || ctxGoalId;
+    if (!gid) {
       console.error('[GoalsScreen] No hay goalId disponible');
       Alert.alert('Error', 'No se pudo obtener la información de la meta');
       return;
@@ -161,24 +217,30 @@ export default function GoalsScreen() {
       museumId: params.museumId,
       museumName: params.museumName,
       museumHistory, // Información del museo con pistas
-      goalId: goalId, // ID de la meta (no del objeto)
+      goalId: gid, // ID de la meta (no del objeto)
     });
   };
 
   const handleQuizPress = async () => {
     setIsQuizLoading(true);
     try {
-      // Obtener el ID de la meta correcto
-      const goalsResponse = await getGoals(params.museumId);
-      
-      // Navegar a la pantalla de cuestionario con el ID de la meta
-      navigation.navigate('Quiz', {
-        museumId: params.museumId,
-        museumName: params.museumName,
-        goalId: goalsResponse.id, // Usar el ID de la meta correcto
-      });
+      // Usar el goalId del hook si está disponible
+      if (ctxGoalId) {
+        navigation.navigate('Quiz', {
+          museumId: params.museumId,
+          museumName: params.museumName,
+          goalId: ctxGoalId,
+        });
+      } else {
+        // Fallback: usar museumId si no hay goalId
+        navigation.navigate('Quiz', {
+          museumId: params.museumId,
+          museumName: params.museumName,
+          goalId: params.museumId,
+        });
+      }
     } catch (error) {
-      console.error('Error obteniendo ID de meta:', error);
+      console.error('Error navegando al quiz:', error);
       // Fallback: usar museumId si hay error
       navigation.navigate('Quiz', {
         museumId: params.museumId,
@@ -265,6 +327,9 @@ export default function GoalsScreen() {
     );
   };
 
+  const showSpinner = isLoading || goalsLoading || isQuizLoading;
+  const showContent = !goalsLoading && !goalsError;
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
@@ -273,6 +338,23 @@ export default function GoalsScreen() {
         <Text style={[styles.infoText, { color: colors.textSecondary }]}>
           Completa las metas o accede directamente al cuestionario
         </Text>
+        
+        {/* Mostrar error si no se pueden cargar las metas */}
+        {goalsError && (
+          <View style={[styles.errorContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+            <Ionicons name="warning-outline" size={20} color={COLORS.error} />
+            <Text style={[styles.errorText, { color: colors.textSecondary }]}>{goalsError}</Text>
+            <TouchableOpacity
+              style={[styles.retryButton, { backgroundColor: colors.buttonBackground }]}
+              onPress={handleStartGoal}
+              disabled={goalsLoading}
+            >
+              <Text style={[styles.retryButtonText, { color: colors.buttonText }]}>
+                {goalsLoading ? 'Iniciando...' : 'Iniciar Meta'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
         
         {/* Botón de Cuestionario */}
         <TouchableOpacity
@@ -322,21 +404,23 @@ export default function GoalsScreen() {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {isLoading ? (
+        {showSpinner ? (
           <View style={styles.loadingContainer}>
             <Ionicons name="hourglass-outline" size={48} color={colors.buttonBackground} />
-            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Cargando metas...</Text>
+            <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+              {goalsLoading ? 'Iniciando metas...' : 'Cargando metas...'}
+            </Text>
           </View>
-        ) : goalObjects.length > 0 ? (
+        ) : showContent && goalObjects.length > 0 ? (
           <View style={styles.objectsContainer}>
             {goalObjects.map((object) => renderGoalObject(object))}
           </View>
-        ) : (
+        ) : showContent ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="search-outline" size={48} color={colors.textSecondary} />
             <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No hay metas disponibles</Text>
           </View>
-        )}
+        ) : null}
       </ScrollView>
       
       <Toast
@@ -446,5 +530,30 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 4,
     opacity: 0.8,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: COLORS.error,
+  },
+  errorText: {
+    marginLeft: 8,
+    fontSize: 14,
+    fontWeight: '600',
+    flex: 1,
+  },
+  retryButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+  },
+  retryButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
