@@ -11,7 +11,6 @@ import ObjectDetailScreen from '@screens/ObjectDetailScreen';
 import MuseumScreen from '@screens/MuseumScreen';
 import RedSocialScreen from '@screens/RedSocialScreen';
 import UserScreen from '@screens/UserScreen';
-import AventureScreen from '@screens/AventureScreen';
 import AvatarScreen from "@screens/AvatarScreen";
 import MuseumforOneScreen from '@screens/MuseumforOneScreen';
 import PostDetailScreen from '@screens/PostDetailScreen';
@@ -111,7 +110,6 @@ export default function DrawerNavigator() {
           swipeEnabled: false, 
         }} 
       />
-      <Drawer.Screen name= "Aventura" component={AventureScreen} options = {{title: 'Aventura'}} />
       <Drawer.Screen name="Museums" component={MuseumScreen} options={{ title: 'Museos' }} />
       <Drawer.Screen 
         name="MuseumforOneScreen" 
