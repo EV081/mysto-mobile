@@ -17,7 +17,7 @@ import { getThemeColors, COLORS } from '@constants/colors';
 import Toast from '@components/common/Toast';
 import { getMuseumPictures } from '@services/pictures/getMuseumPictures';
 import { getMuseumHistory } from '@services/Gemma/getMuseumHistory';
-import { useGoalInit } from '@hooks/useGoalInit';
+import { useMuseumGoals } from '@hooks/aventure/useMuseumGoals'; // ✅ reemplaza al eliminado useGoalInit
 
 interface AdventureRouteParams {
   museumId: number;
@@ -94,13 +94,6 @@ function extractIntroAndClues(reply: string): { introTexts: string[]; clues: His
   return { introTexts: lines, clues: [] };
 }
 
-function extractReplyString(res: any): string | null {
-  if (!res) return null;
-  const data = res?.data ?? res;
-  const r = data?.reply ?? res?.reply;
-  return typeof r === 'string' ? r : null;
-}
-
 export default function AventureScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
@@ -120,13 +113,19 @@ export default function AventureScreen() {
   // Toast
   const [toastVisible, setToastVisible] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
-  const [toastType, setToastType] = useState<'success' | 'error' | 'warning' | 'info'>('info');
+  const [toastType, setToastType] =
+    useState<'success' | 'error' | 'warning' | 'info'>('info');
 
-  // Hook de inicio/gestión de goal
-  const { goalId, status, message, isInitializing } = useGoalInit({
-    museumId: params?.museumId,
-    userLocation: params?.userLocation ?? null,
-    autostart: true,
+  // ✅ Usar useMuseumGoals (auto inicia si no hay meta y entrega goalId real)
+  const {
+    goalId,                  // <-- goalId REAL del backend
+    isLoading: goalsLoading, // para spinner
+    error: goalsError,
+    refreshGoals,            // por si quieres forzar recarga
+  } = useMuseumGoals({
+    museumId: params.museumId,
+    userLocation: params.userLocation,
+    autoStart: true,
   });
 
   // Tamaño responsive del panel de texto
@@ -147,29 +146,29 @@ export default function AventureScreen() {
             null
           );
         }
-      } catch {/* no crítico */}
+      } catch {
+        // no crítico
+      }
     };
     fetchPictures();
   }, [params?.museumId]);
 
-  // Toasts por estado del hook
+  // Toast si falla el hook de metas
   useEffect(() => {
-    if (!status || status === 'idle' || status === 'starting') return;
-    const show = (t: typeof toastType, m: string) => { setToastType(t); setToastMessage(m); setToastVisible(true); };
-    if (status === 'blocked_distance') show('warning', 'Debes estar cerca del museo para iniciar la misión.');
-    else if (status === 'insufficient_objects') show('error', 'El museo no tiene suficientes objetos culturales.');
-    else if (status === 'not_found') show('error', 'Museo no encontrado.');
-    else if (status === 'unauthorized') show('error', 'Sesión expirada o no autorizada.');
-    else if (status === 'error' && message) show('error', message);
-  }, [status, message]);
+    if (!goalsError) return;
+    setToastType('error');
+    setToastMessage(goalsError);
+    setToastVisible(true);
+  }, [goalsError]);
 
-  // Historia IA → SOLO intro + pistas con id
+  // Historia IA → SOLO cuando ya tenemos goalId válido
   useEffect(() => {
     let alive = true;
     const run = async () => {
       if (!params?.museumId) { setLoadingHistory(false); return; }
-      if (isInitializing) { setLoadingHistory(true); return; }
-      if (!goalId) {
+
+      // Esperar a que exista goalId (no usamos museumId jamás para Gemma)
+      if (!goalId || goalId === params.museumId) {
         setDialogLines(FALLBACK_LINES);
         setObjectClues([]);
         setLoadingHistory(false);
@@ -178,9 +177,9 @@ export default function AventureScreen() {
 
       setLoadingHistory(true);
       try {
-        const res = await getMuseumHistory(goalId);
-        const replyString = extractReplyString(res) ?? '';
-        const { introTexts, clues } = extractIntroAndClues(replyString);
+        // getMuseumHistory ahora devuelve { reply: string }
+        const { reply } = await getMuseumHistory(goalId);
+        const { introTexts, clues } = extractIntroAndClues(reply || '');
 
         if (alive) {
           setDialogLines(introTexts.length ? introTexts : FALLBACK_LINES);
@@ -200,9 +199,9 @@ export default function AventureScreen() {
     };
     run();
     return () => { alive = false; };
-  }, [goalId, isInitializing, params?.museumId]);
+  }, [goalId, params?.museumId]);
 
-  // Navegar y ENVIAR pistas (solo ids)
+  // Navegar y ENVIAR pistas (solo ids) a GoalsScreen
   const onPressGo = () => {
     const cluesPayload = objectClues.map(c => ({ id: String(c.id), text: c.text }));
     navigation.navigate('Goals', {
@@ -215,9 +214,9 @@ export default function AventureScreen() {
   };
 
   const headerTitle = useMemo(() => params?.museumName ?? 'Aventura Cultural', [params?.museumName]);
-  const showSpinner = loadingHistory || isInitializing;
+  const showSpinner = loadingHistory || goalsLoading;
 
-  // Un solo párrafo justificado (evita huecos entre “líneas”)
+  // Un solo párrafo justificado
   const introParagraph = useMemo(
     () => (dialogLines.length ? dialogLines : FALLBACK_LINES).join(' '),
     [dialogLines]
@@ -256,15 +255,15 @@ export default function AventureScreen() {
             <Text style={{ color: colors.textSecondary, fontSize: 12 }}>Cargando historia…</Text>
           </View>
         ) : (
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingVertical: 8 }}
-          >
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingVertical: 8 }}>
             <Text
               style={[styles.dialogParagraph, { color: colors.text }]}
-              // iOS: cortes de palabra más agradables
+              // iOS
               // @ts-ignore
               hyphenationFactor={1.0}
+              // ANDROID
+              // @ts-ignore
+              textBreakStrategy="balanced"
             >
               {introParagraph}
             </Text>
@@ -331,15 +330,12 @@ const styles = StyleSheet.create({
   },
   ribbonText: { fontSize: 12, fontWeight: '900', letterSpacing: 1.2 },
 
-  // Párrafo justificado sin “huecos”
   dialogParagraph: {
     fontSize: 20,
-    lineHeight: 28,              // ~1.4x
+    lineHeight: 28,
     textAlign: 'justify',
     letterSpacing: 0.2,
-    includeFontPadding: false,   // ANDROID: elimina padding extra vertical de la fuente
-    // @ts-ignore
-    textBreakStrategy: 'balanced' // ANDROID: cortes más agradables
+    includeFontPadding: false,
   },
 
   goButton: {

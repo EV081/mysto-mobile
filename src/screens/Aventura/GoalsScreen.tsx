@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, useColorScheme, TouchableOpacity, ScrollView, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,9 +7,9 @@ import { getThemeColors, COLORS } from '@constants/colors';
 import { getCulturalObjectInfo } from '@services/culturalObject/getCulturalObjectInfo';
 import { getMuseumHistory } from '@services/Gemma/getMuseumHistory';
 import { useToast } from '@hooks/useToast';
-import { useLocationValidation } from '@hooks/useLocationValidation';
-import { useGoalsCompletion } from '@hooks/useGoalsCompletion';
-import { useMuseumGoals } from '@hooks/useMuseumGoals';
+import { useLocationValidation } from '@hooks/aventure/useLocationValidation';
+import { useGoalsCompletion } from '@hooks/aventure/useGoalsCompletion';
+import { useMuseumGoals } from '@hooks/aventure/useMuseumGoals';
 import Toast from '@components/common/Toast';
 
 interface GoalsRouteParams {
@@ -17,7 +17,7 @@ interface GoalsRouteParams {
   museumName: string;
   museumLocation?: { latitude: number; longitude: number; } | null;
   userLocation?: { latitude: number; longitude: number; } | null;
-  objectClues?: { id: string; text: string }[]; // llega de AventureScreen
+  objectClues?: { id: string; text: string }[];
 }
 
 interface GoalObject {
@@ -38,43 +38,39 @@ export default function GoalsScreen() {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
   const colors = getThemeColors(isDark);
-  const { toast, showCelebration, hideToast } = useToast();
+  const { toast, hideToast } = useToast();
 
   const [goalObjects, setGoalObjects] = useState<GoalObject[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isQuizLoading, setIsQuizLoading] = useState(false);
   const [museumHistory, setMuseumHistory] = useState<any>(null);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  const [goalId, setGoalId] = useState<number | null>(null); // ID de la meta
 
-  // Estado compartido de metas por museo
-  const { 
-    goalId: ctxGoalId, 
-    found, 
-    culturalObjects, 
-    isLoading: goalsLoading, 
+  // Estado metas (si no existe, el hook la inicia)
+  const {
+    goalId,            // <-- goalId REAL
+    found,
+    culturalObjects,
+    isLoading: goalsLoading,
     error: goalsError,
     startGoal,
-    refreshGoals 
+    refreshGoals,
   } = useMuseumGoals({
     museumId: params.museumId,
     userLocation: params.userLocation,
-    autoStart: true
+    autoStart: true,
   });
 
-  // Hook para validar ubicación
   const { validateLocation, isValidatingLocation, isLocationValid } = useLocationValidation({
     museumId: params.museumId,
     userLocation: params.userLocation,
   });
 
-  // Hook para verificar completación de metas
-  const { isCompleted, checkGoalsCompletion } = useGoalsCompletion({
+  const { checkGoalsCompletion } = useGoalsCompletion({
     museumId: params.museumId,
     museumName: params.museumName,
   });
 
-  // Función para iniciar meta manualmente si es necesario
   const handleStartGoal = async () => {
     try {
       await startGoal();
@@ -83,21 +79,16 @@ export default function GoalsScreen() {
     }
   };
 
-  const fetchMuseumHistory = async () => {
+  const fetchMuseumHistory = async (gid: number) => {
     try {
       setIsLoadingHistory(true);
-      console.log('[GoalsScreen] Obteniendo información del museo para meta:', params.museumId);
-      
-      // Solo obtener historia si tenemos goalId
-      if (ctxGoalId) {
-        const historyResponse = await getMuseumHistory(ctxGoalId);
-        console.log('[GoalsScreen] Información del museo obtenida:', historyResponse.data);
-        setMuseumHistory(historyResponse.data);
-      }
-      
+      console.log('[GoalsScreen] Gemma -> /gemma/museum-history/', gid);
+      // getMuseumHistory ahora devuelve el body (GemmaReply)
+      const history = await getMuseumHistory(gid);
+      console.log('[GoalsScreen] Historia recibida:', history);
+      setMuseumHistory(history);
     } catch (error) {
-      console.error('[GoalsScreen] Error obteniendo información del museo:', error);
-      // No mostrar error al usuario, solo log
+      console.error('[GoalsScreen] Error obteniendo historia del museo:', error);
     } finally {
       setIsLoadingHistory(false);
     }
@@ -116,83 +107,56 @@ export default function GoalsScreen() {
     return map;
   }, [params?.objectClues]);
 
+  // Cargar historia en cuanto tengamos un goalId válido
   useEffect(() => {
-    // Solo cargar historia si tenemos goalId
-    if (ctxGoalId) {
-      fetchMuseumHistory();
+    if (goalId && goalId !== params.museumId) {
+      fetchMuseumHistory(goalId);
     }
-  }, [ctxGoalId]);
+  }, [goalId, params.museumId]);
 
-  // Cargar objetos cuando cambie el contexto
+  // Cargar objetos al tener culturalObjects
   useEffect(() => {
-    if (culturalObjects.length > 0 && !goalObjects.length) {
-      loadObjectsFromCulturalObjects();
-    }
-  }, [culturalObjects, goalObjects.length]);
-
-  // NUEVO: Refrescar automáticamente cuando se desbloquea un objeto
-  useEffect(() => {
-    if (found.size > 0 && goalObjects.length > 0) {
-      // Actualizar el estado de desbloqueo de los objetos existentes
-      setGoalObjects(prev => prev.map(o => ({
-        ...o,
-        isDiscovered: found.has(o.id),
-      })));
-    }
-  }, [found, goalObjects.length]);
-
-  // Función para cargar objetos desde culturalObjects del hook
-  const loadObjectsFromCulturalObjects = async () => {
-    if (!culturalObjects.length) return;
-    
-    try {
-      setIsLoading(true);
-      console.log('[GoalsScreen] Cargando objetos desde culturalObjects:', culturalObjects.length);
-      
-      const objectsData: GoalObject[] = [];
-      for (const culturalObject of culturalObjects) {
+    if (culturalObjects.length > 0 && goalObjects.length === 0) {
+      (async () => {
         try {
-          const objectResponse = await getCulturalObjectInfo(culturalObject.id);
-          const base: GoalObject = {
-            id: objectResponse.data.id,
-            name: objectResponse.data.name,
-            description: objectResponse.data.description,
-            pictureUrls: objectResponse.data.pictureUrls || [],
-            type: objectResponse.data.type,
-            isDiscovered: found.has(culturalObject.id),
-          };
-
-          const cluesForThis = clueMap.get(base.id);
-          if (cluesForThis?.length) base.clueTexts = cluesForThis;
-
-          objectsData.push(base);
-        } catch (error) {
-          console.error(`Error fetching object ${culturalObject.id}:`, error);
+          setIsLoading(true);
+          const objectsData: GoalObject[] = [];
+          for (const culturalObject of culturalObjects) {
+            try {
+              const objectResponse = await getCulturalObjectInfo(culturalObject.id);
+              const base: GoalObject = {
+                id: objectResponse.data.id,
+                name: objectResponse.data.name,
+                description: objectResponse.data.description,
+                pictureUrls: objectResponse.data.pictureUrls || [],
+                type: objectResponse.data.type,
+                isDiscovered: found.has(culturalObject.id),
+              };
+              const cluesForThis = clueMap.get(base.id);
+              if (cluesForThis?.length) base.clueTexts = cluesForThis;
+              objectsData.push(base);
+            } catch (error) {
+              console.error(`Error fetching object ${culturalObject.id}:`, error);
+            }
+          }
+          const sorted = objectsData.sort((a, b) => a.id - b.id);
+          setGoalObjects(sorted);
+        } finally {
+          setIsLoading(false);
         }
-      }
-
-      // Ordenar objetos por ID en orden ascendente
-      const sortedObjects = objectsData.sort((a, b) => a.id - b.id);
-      
-      setGoalObjects(sortedObjects);
-      setGoalId(ctxGoalId);
-    } catch (error) {
-      console.error('Error loading objects from culturalObjects:', error);
-    } finally {
-      setIsLoading(false);
+      })();
     }
-  };
+  }, [culturalObjects, goalObjects.length, found, clueMap]);
 
-  // Cuando cambia el conjunto de encontrados, actualizamos el array para reflejar imágenes desbloqueadas
+  // Actualizar descubiertos cuando cambia found
   useEffect(() => {
     if (!goalObjects.length) return;
-    setGoalObjects(prev => prev.map(o => ({
-      ...o,
-      isDiscovered: found?.has(o.id) ? true : o.isDiscovered,
-    })));
-  }, [found]);
+    setGoalObjects(prev =>
+      prev.map(o => ({ ...o, isDiscovered: found.has(o.id) || o.isDiscovered }))
+    );
+  }, [found, goalObjects.length]);
 
-  // Verificar completación de metas cuando cambian los objetos
+  // Verificar completado cuando cambian objetos
   useEffect(() => {
     if (goalObjects.length > 0) {
       checkGoalsCompletion();
@@ -200,53 +164,33 @@ export default function GoalsScreen() {
   }, [goalObjects, checkGoalsCompletion]);
 
   const handleObjectPress = (object: GoalObject) => {
-    console.log('[GoalsScreen] Navegando a GoalDetail con objeto:', object.id);
-    console.log('[GoalsScreen] Información del museo disponible:', museumHistory);
-    console.log('[GoalsScreen] GoalId disponible:', goalId);
-    
-    const gid = goalId || ctxGoalId;
-    if (!gid) {
-      console.error('[GoalsScreen] No hay goalId disponible');
-      Alert.alert('Error', 'No se pudo obtener la información de la meta');
+    if (!goalId || goalId === params.museumId) {
+      Alert.alert('Meta no lista', 'Aún no se obtuvo el ID de la meta.');
       return;
     }
-    
-    // Se envían las pistas del objeto a la pantalla de detalle
     navigation.navigate('GoalDetail', {
       object,
       museumId: params.museumId,
       museumName: params.museumName,
-      museumHistory, // Información del museo con pistas
-      goalId: gid, // ID de la meta (no del objeto)
+      museumHistory,
+      goalId, // <-- goalId válido
     });
   };
 
   const handleQuizPress = async () => {
     setIsQuizLoading(true);
     try {
-      // Usar el goalId del hook si está disponible
-      if (ctxGoalId) {
-        navigation.navigate('Quiz', {
-          museumId: params.museumId,
-          museumName: params.museumName,
-          goalId: ctxGoalId,
-        });
-      } else {
-        // Fallback: usar museumId si no hay goalId
-        navigation.navigate('Quiz', {
-          museumId: params.museumId,
-          museumName: params.museumName,
-          goalId: params.museumId,
-        });
+      if (!goalId || goalId === params.museumId) {
+        Alert.alert('Meta no lista', 'Aún no se obtuvo el ID de la meta.');
+        return;
       }
-    } catch (error) {
-      console.error('Error navegando al quiz:', error);
-      // Fallback: usar museumId si hay error
       navigation.navigate('Quiz', {
         museumId: params.museumId,
         museumName: params.museumName,
-        goalId: params.museumId,
+        goalId, // <-- goalId válido
       });
+    } catch (error) {
+      console.error('Error navegando al quiz:', error);
     } finally {
       setIsQuizLoading(false);
     }
@@ -338,8 +282,7 @@ export default function GoalsScreen() {
         <Text style={[styles.infoText, { color: colors.textSecondary }]}>
           Completa las metas o accede directamente al cuestionario
         </Text>
-        
-        {/* Mostrar error si no se pueden cargar las metas */}
+
         {goalsError && (
           <View style={[styles.errorContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
             <Ionicons name="warning-outline" size={20} color={COLORS.error} />
@@ -355,48 +298,38 @@ export default function GoalsScreen() {
             </TouchableOpacity>
           </View>
         )}
-        
-        {/* Botón de Cuestionario */}
+
         <TouchableOpacity
           style={[
-            styles.quizButton, 
-            { 
+            styles.quizButton,
+            {
               backgroundColor: colors.buttonBackground,
-              opacity: isQuizLoading ? 0.6 : 1
-            }
+              opacity: isQuizLoading ? 0.6 : 1,
+            },
           ]}
           onPress={handleQuizPress}
           disabled={isQuizLoading}
           activeOpacity={0.8}
         >
-          <Ionicons 
-            name={isQuizLoading ? "hourglass" : "help-circle"} 
-            size={20} 
-            color={colors.buttonText} 
-          />
+          <Ionicons name={isQuizLoading ? 'hourglass' : 'help-circle'} size={20} color={colors.buttonText} />
           <Text style={[styles.quizButtonText, { color: colors.buttonText }]}>
             {isQuizLoading ? 'Cargando...' : 'Cuestionario'}
           </Text>
         </TouchableOpacity>
 
-        {/* Botón de Validar Ubicación */}
         <TouchableOpacity
           style={[
             styles.locationButton,
-            { 
+            {
               backgroundColor: isLocationValid ? COLORS.success : colors.buttonBackground,
-              opacity: isValidatingLocation ? 0.6 : 1
-            }
+              opacity: isValidatingLocation ? 0.6 : 1,
+            },
           ]}
           onPress={validateLocation}
           disabled={isValidatingLocation}
           activeOpacity={0.8}
         >
-          <Ionicons 
-            name={isValidatingLocation ? "hourglass" : "location"} 
-            size={20} 
-            color={colors.buttonText} 
-          />
+          <Ionicons name={isValidatingLocation ? 'hourglass' : 'location'} size={20} color={colors.buttonText} />
           <Text style={[styles.locationButtonText, { color: colors.buttonText }]}>
             {isValidatingLocation ? 'Validando...' : 'Validar Ubicación'}
           </Text>
@@ -412,9 +345,7 @@ export default function GoalsScreen() {
             </Text>
           </View>
         ) : showContent && goalObjects.length > 0 ? (
-          <View style={styles.objectsContainer}>
-            {goalObjects.map((object) => renderGoalObject(object))}
-          </View>
+          <View style={styles.objectsContainer}>{goalObjects.map(obj => renderGoalObject(obj))}</View>
         ) : showContent ? (
           <View style={styles.emptyContainer}>
             <Ionicons name="search-outline" size={48} color={colors.textSecondary} />
@@ -422,13 +353,8 @@ export default function GoalsScreen() {
           </View>
         ) : null}
       </ScrollView>
-      
-      <Toast
-        visible={toast.visible}
-        message={toast.message}
-        type={toast.type}
-        onHide={hideToast}
-      />
+
+      <Toast visible={toast.visible} message={toast.message} type={toast.type} onHide={hideToast} />
     </SafeAreaView>
   );
 }
@@ -447,12 +373,9 @@ const styles = StyleSheet.create({
   title: { fontSize: 32, fontWeight: 'bold', marginBottom: 8 },
   subtitle: { fontSize: 18, textAlign: 'center' },
   content: { flex: 1, paddingHorizontal: 16 },
-
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 },
   loadingText: { marginTop: 16, fontSize: 16 },
-
   objectsContainer: { paddingVertical: 16 },
-
   objectCard: {
     marginBottom: 16,
     padding: 16,
@@ -463,97 +386,29 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     elevation: 3,
   },
-
   objectHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   objectTitle: { fontSize: 18, fontWeight: '700', flex: 1, paddingRight: 8 },
-
   badgeLocked: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4, paddingHorizontal: 10, borderRadius: 999, borderWidth: 1.5 },
   badgeUnlocked: { flexDirection: 'row', alignItems: 'center', paddingVertical: 4, paddingHorizontal: 10, borderRadius: 999 },
   badgeText: { marginLeft: 6, fontSize: 12, fontWeight: '800', letterSpacing: 0.3 },
   badgeTextLocked: { marginLeft: 6, fontSize: 12, fontWeight: '800', letterSpacing: 0.3 },
-
   objectImg: { width: '100%', height: 168, borderRadius: 10, marginBottom: 12 },
-
   lockPanel: { height: 168, borderRadius: 10, borderWidth: 2, borderStyle: 'dashed', marginBottom: 12, alignItems: 'center', justifyContent: 'center', gap: 6 },
   lockText: { fontSize: 12, fontWeight: '900', letterSpacing: 1 },
   lockHint: { fontSize: 12, opacity: 0.85, textAlign: 'center' },
-
   objectDesc: { fontSize: 14, lineHeight: 20, textAlign: 'justify', includeFontPadding: false },
   moreClues: { marginTop: 6, fontSize: 12 },
-
   cardFooter: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   objectType: { fontSize: 12, fontWeight: '700' },
-
   emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 },
   emptyText: { marginTop: 16, fontSize: 16, textAlign: 'center' },
-  
-  quizButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginTop: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  quizButtonText: {
-    marginLeft: 8,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  
-  locationButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginTop: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  locationButtonText: {
-    marginLeft: 8,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  
-  infoText: {
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: 4,
-    opacity: 0.8,
-  },
-  errorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    marginTop: 12,
-    borderWidth: 1,
-    borderColor: COLORS.error,
-  },
-  errorText: {
-    marginLeft: 8,
-    fontSize: 14,
-    fontWeight: '600',
-    flex: 1,
-  },
-  retryButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-  },
-  retryButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
+  quizButton: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, marginTop: 12, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+  quizButtonText: { marginLeft: 8, fontSize: 14, fontWeight: '600' },
+  locationButton: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, marginTop: 8, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 },
+  locationButtonText: { marginLeft: 8, fontSize: 14, fontWeight: '600' },
+  infoText: { fontSize: 12, textAlign: 'center', marginTop: 4, opacity: 0.8 },
+  errorContainer: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 10, marginTop: 12, borderWidth: 1, borderColor: COLORS.error },
+  errorText: { marginLeft: 8, fontSize: 14, fontWeight: '600', flex: 1 },
+  retryButton: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10 },
+  retryButtonText: { fontSize: 14, fontWeight: '600' },
 });
