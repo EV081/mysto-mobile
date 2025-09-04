@@ -5,5 +5,5 @@ export { useAuthState } from './useAuth';
 export { useStorageState } from './useStorageState';
 export { useMuseumData } from './useMuseumData';
 export { useMuseumUtils } from './useMuseumUtils';
-export { useLocationValidation } from './useLocationValidation';
-export { useGoalsCompletion } from './useGoalsCompletion'; 
+export { useLocationValidation } from './aventure/useLocationValidation';
+export { useGoalsCompletion } from './aventure/useGoalsCompletion'; 

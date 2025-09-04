@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { checkPlace } from '@services/goals/checkPlace';
-import { useToast } from './useToast';
+import { useToast } from '../useToast';
 
 interface UseLocationValidationProps {
   museumId: number;

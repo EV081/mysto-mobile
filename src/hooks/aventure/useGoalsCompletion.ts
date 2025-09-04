@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { getGoals } from '@services/goals/getGoal';
-import { useToast } from './useToast';
+import { useToast } from '../useToast';
 import { useNavigation } from '@react-navigation/native';
 
 interface UseGoalsCompletionProps {
